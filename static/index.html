@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Controle Financeiro</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icone.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icone-180.png">
+<meta name="theme-color" content="#2f6fde">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topo">
+  <div class="titulo"><h1>Controle Financeiro</h1><button class="discreto" id="sair" hidden>Sair</button></div>
+  <nav id="abas">
+    <a href="#mes" data-aba="mes">Mês</a>
+    <a href="#recorrencias" data-aba="recorrencias">Recorrências</a>
+    <a href="#parcelamentos" data-aba="parcelamentos">Parcelamentos</a>
+    <a href="#entradas" data-aba="entradas">Entradas</a>
+    <a href="#resumo" data-aba="resumo">Resumo</a>
+    <a href="#categorias" data-aba="categorias">Categorias</a>
+  </nav>
+</header>
+<main id="conteudo"></main>
+
+<dialog id="modal">
+  <form method="dialog" id="modal-form">
+    <h2 id="modal-titulo"></h2>
+    <div id="modal-corpo"></div>
+    <p class="erro" id="modal-erro"></p>
+    <div class="modal-acoes">
+      <button type="button" class="perigo" id="modal-apagar" hidden>Apagar</button>
+      <span class="espaco"></span>
+      <button type="button" value="cancelar" id="modal-cancelar">Cancelar</button>
+      <button type="submit" class="primario" id="modal-ok">Salvar</button>
+    </div>
+  </form>
+</dialog>
+<div id="aviso" role="status"></div>
+<script src="app.js"></script>
+</body>
+</html>

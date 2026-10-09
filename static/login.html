@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Entrar · Controle Financeiro</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icone.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icone-180.png">
+<meta name="theme-color" content="#2f6fde">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="login">
+  <form id="form-login" class="cartao">
+    <h1>Controle Financeiro</h1>
+    <label class="campo"><span>Usuário</span><input name="usuario" autocomplete="username" autocapitalize="none" required autofocus></label>
+    <label class="campo"><span>Senha</span><input name="senha" type="password" autocomplete="current-password" required></label>
+    <p class="erro" id="erro"></p>
+    <button type="submit" class="primario">Entrar</button>
+  </form>
+</main>
+<script>
+document.getElementById("form-login").onsubmit = async (ev) => {
+  ev.preventDefault();
+  const erro = document.getElementById("erro");
+  erro.textContent = "";
+  const resp = await fetch("/api/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(Object.fromEntries(new FormData(ev.target))),
+  });
+  if (resp.ok) location.href = "/";
+  else erro.textContent = (await resp.json().catch(() => ({}))).erro || "Não foi possível entrar";
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,5 @@
+# Dados financeiros nunca vão para o repositório
+*.db
+backups/
+*.zip
+__pycache__/
