@@ -495,11 +495,17 @@ async function telaEntradas(ano) {
           <td><button class="discreto" data-fonte="${f.id}">${esc(f.nome)}</button></td>
           ${f.valores.map((x, m) => `<td><input data-f="${f.id}" data-m="${m}" inputmode="decimal" style="min-width:86px"
               value="${x != null ? numero.format(x) : ""}"></td>`).join("")}
-          <td class="num"><strong>${R(totalFonte(f))}</strong></td></tr>`).join("")}
-        <tr><td><strong>Total</strong></td>${MESES_CURTOS.map((_, m) => `<td class="num"><strong>${numero.format(totalMes(m))}</strong></td>`).join("")}
-          <td class="num"><strong>${R(d.fontes.reduce((s, f) => s + totalFonte(f), 0))}</strong></td></tr>
+          <td class="num"><strong data-tf="${f.id}">${R(totalFonte(f))}</strong></td></tr>`).join("")}
+        <tr><td><strong>Total</strong></td>${MESES_CURTOS.map((_, m) => `<td class="num"><strong data-tm="${m}">${numero.format(totalMes(m))}</strong></td>`).join("")}
+          <td class="num"><strong id="total-geral">${R(d.fontes.reduce((s, f) => s + totalFonte(f), 0))}</strong></td></tr>
       </tbody>
     </table></div></section>`;
+
+  const atualizarTotais = () => {
+    d.fontes.forEach((f) => ($(`[data-tf="${f.id}"]`).textContent = R(totalFonte(f))));
+    MESES_CURTOS.forEach((_, m) => ($(`[data-tm="${m}"]`).textContent = numero.format(totalMes(m))));
+    $("#total-geral").textContent = R(d.fontes.reduce((s, f) => s + totalFonte(f), 0));
+  };
 
   $$("[data-ano]").forEach((b) => (b.onclick = () => (location.hash = `#entradas/${b.dataset.ano}`)));
   $$("input[data-f]").forEach((inp) => {
@@ -508,11 +514,14 @@ async function telaEntradas(ano) {
       if (Number.isNaN(v)) return aviso("Valor inválido", true);
       try {
         await api("PUT", "/api/entradas", { fonte_id: Number(inp.dataset.f), mes: `${ano}-${pad(Number(inp.dataset.m) + 1)}`, valor: v });
+        // Atualiza no lugar: refazer a tela destruiria o campo que o usuário acabou de clicar.
+        d.fontes.find((f) => f.id === Number(inp.dataset.f)).valores[Number(inp.dataset.m)] = v;
+        inp.value = v != null ? numero.format(v) : "";
+        atualizarTotais();
         aviso("Salvo");
-        render();
       } catch (e) { aviso(e.message, true); }
     };
-    inp.onkeydown = (e) => e.key === "Enter" && inp.blur();
+    inp.onkeydown = (e) => { if (e.key === "Enter") inp.blur(); };
   });
   const modalFonte = (f) => abrirModal({
     titulo: f ? "Fonte de renda" : "Nova fonte de renda",
