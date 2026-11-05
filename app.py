@@ -99,6 +99,25 @@ CREATE TABLE IF NOT EXISTS entradas (
     valor_centavos INTEGER NOT NULL,
     PRIMARY KEY (fonte_id, mes)
 );
+-- Projeções: tudo aqui é hipotético e nunca entra nos totais reais.
+CREATE TABLE IF NOT EXISTS projecao_entradas (
+    mes TEXT PRIMARY KEY,
+    valor_centavos INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS cenarios (
+    id INTEGER PRIMARY KEY,
+    nome TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    ordem INTEGER NOT NULL DEFAULT 0
+);
+-- cenario_id NULL = conta prevista, vale para todos os cenários.
+CREATE TABLE IF NOT EXISTS projecao_contas (
+    id INTEGER PRIMARY KEY,
+    cenario_id INTEGER REFERENCES cenarios(id) ON DELETE CASCADE,
+    descricao TEXT NOT NULL,
+    total_centavos INTEGER NOT NULL CHECK (total_centavos > 0),
+    n_parcelas INTEGER NOT NULL CHECK (n_parcelas >= 1),
+    primeira_parcela TEXT NOT NULL           -- AAAA-MM
+);
 CREATE TABLE IF NOT EXISTS usuarios (
     id INTEGER PRIMARY KEY,
     nome TEXT NOT NULL UNIQUE COLLATE NOCASE,
@@ -588,6 +607,62 @@ def salvar_fonte(con, d, fid=None):
         return fid
     except sqlite3.IntegrityError:
         raise ErroEntrada(f"Já existe a fonte {nome!r}")
+
+
+# ------------------------------------------------------------- projeções
+
+def parcela_centavos(total_centavos, n):
+    """Parcela arredondada ao centavo mais próximo (meio sobe), como inteiros."""
+    return (total_centavos * 2 + n) // (2 * n)
+
+
+def _conta_projetada(r, meses):
+    parcela = parcela_centavos(r["total_centavos"], r["n_parcelas"])
+    valores = [reais(parcela) if 1 <= numero_parcela(r["primeira_parcela"], m) <= r["n_parcelas"] else 0
+               for m in meses]
+    return {"id": r["id"], "descricao": r["descricao"], "total": reais(r["total_centavos"]),
+            "n_parcelas": r["n_parcelas"], "primeira_parcela": r["primeira_parcela"], "valores": valores}
+
+
+def projecao(con, inicio, n_meses=12):
+    meses = [somar_meses(inicio, i) for i in range(n_meses)]
+    visoes = [visao_mes(con, m)["totais"] for m in meses]
+    digitadas = {r["mes"]: r["valor_centavos"] for r in con.execute("SELECT mes, valor_centavos FROM projecao_entradas")}
+    entradas = []
+    for m, t in zip(meses, visoes):
+        if m in digitadas:
+            entradas.append({"valor": reais(digitadas[m]), "origem": "digitada"})
+        elif t["entradas"]:
+            entradas.append({"valor": t["entradas"], "origem": "real"})
+        else:
+            entradas.append({"valor": 0.0, "origem": "vazia"})
+    base = {"recorrencias": [t["recorrencias"] for t in visoes], "parcelas": [t["parcelas"] for t in visoes],
+            "avulsos": [t["avulsos"] for t in visoes]}
+    fixas = [sum(x) for x in zip(base["recorrencias"], base["parcelas"], base["avulsos"])]
+
+    todas = con.execute("SELECT * FROM projecao_contas ORDER BY id").fetchall()
+    previstas = [_conta_projetada(r, meses) for r in todas if r["cenario_id"] is None]
+
+    def resultado(cid, nome, contas):
+        despesas = [round(fixas[i] + sum(c["valores"][i] for c in previstas + contas), 2) for i in range(n_meses)]
+        saldo = [round(entradas[i]["valor"] - despesas[i], 2) for i in range(n_meses)]
+        acumulado, soma = [], 0.0
+        for s in saldo:
+            soma = round(soma + s, 2)
+            acumulado.append(soma)
+        pior = min(range(n_meses), key=lambda i: saldo[i])
+        return {"id": cid, "nome": nome, "contas": contas, "despesas": despesas, "saldo": saldo,
+                "acumulado": acumulado,
+                "comprometimento": [despesas[i] / entradas[i]["valor"] if entradas[i]["valor"] else None
+                                    for i in range(n_meses)],
+                "pior_mes": {"mes": meses[pior], "saldo": saldo[pior]}}
+
+    cenarios = [resultado(None, "Sem a compra", [])]
+    for c in con.execute("SELECT id, nome FROM cenarios ORDER BY ordem, id"):
+        contas = [_conta_projetada(r, meses) for r in todas if r["cenario_id"] == c["id"]]
+        cenarios.append(resultado(c["id"], c["nome"], contas))
+    return {"inicio": inicio, "meses": meses, "entradas": entradas, "base": base,
+            "previstas": previstas, "cenarios": cenarios}
 
 
 # ------------------------------------------------------------------ HTTP
