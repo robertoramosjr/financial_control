@@ -1,7 +1,7 @@
 # Controle Financeiro
 
 Controle de despesas da casa: compras avulsas, recorrências (assinaturas/contas mensais),
-parcelamentos, entradas e resumo anual. Python puro (sem dependências) + SQLite.
+parcelamentos, entradas, projeções por cenário e resumo anual. Python puro (sem dependências) + SQLite.
 
 ## No computador
 
