@@ -21,6 +21,7 @@ const estado = {
   filtroParc: "em_andamento",
   mostrarEncerradas: false,
   cenarioSel: null,   // aba Projeções: id do cenário aberto (null = "Sem a compra")
+  modoGraf: "pct",    // aba Projeções: eixo do gráfico, "pct" (comprometimento) ou "saldo" (R$)
 };
 
 function esc(s) {
@@ -588,6 +589,49 @@ function modalContas({ cenarioId, conta }) {
   });
 }
 
+const TRACEJADOS = ["6 4", "2 3", "10 3 2 3"];   // cenários além das 6 cores repetem a cor com tracejado
+const corCen = (k) => `var(--cen-${(k % 6) + 1})`;
+const tracejadoCen = (k) => (k < 6 ? "" : ` stroke-dasharray="${TRACEJADOS[(Math.floor(k / 6) - 1) % TRACEJADOS.length]}"`);
+
+/** Linhas sobrepostas dos cenários, mês a mês. modo: "pct" = comprometimento (%), "saldo" = saldo do mês (R$). */
+function graficoProjecao(d, modo, selecionado) {
+  const W = 900, H = 300, m = { t: 16, r: 12, b: 28, l: 56 };
+  const N = d.meses.length;
+  const valor = (c, i) => (modo === "pct" ? (c.comprometimento[i] == null ? null : c.comprometimento[i] * 100) : c.saldo[i]);
+  const ref = modo === "pct" ? 100 : 0;
+  const vals = d.cenarios.flatMap((c) => d.meses.map((_, i) => valor(c, i))).filter((v) => v != null);
+  let max = Math.max(ref, ...vals), min = Math.min(0, ...vals);
+  const passo = Math.pow(10, Math.floor(Math.log10(Math.max(max - min, 1)))) / 2 || 1;
+  max = Math.ceil(max / passo) * passo; min = Math.floor(min / passo) * passo;
+  const y = (v) => m.t + ((max - v) / (max - min || 1)) * (H - m.t - m.b);
+  const x = (i) => m.l + ((W - m.l - m.r) * (i + 0.5)) / N;
+  const rotulo = (v) => (modo === "pct" ? `${Math.round(v)}%` : Math.abs(v) >= 1000 ? `${(v / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}k` : v);
+
+  let grade = "";
+  for (let v = min; v <= max + 1e-6; v += passo * ((max - min) / passo > 8 ? 2 : 1)) {
+    grade += `<line x1="${m.l}" x2="${W - m.r}" y1="${y(v)}" y2="${y(v)}" stroke="var(--linha)"/>
+      <text x="${m.l - 6}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="var(--suave)">${rotulo(v)}</text>`;
+  }
+  const meses = d.meses.map((mes, i) => `<text x="${x(i)}" y="${H - 8}" text-anchor="middle" font-size="12" fill="var(--suave)">${MESES_CURTOS[Number(mes.slice(5)) - 1]}</text>`).join("");
+  const series = d.cenarios.map((c, k) => {
+    const sel = c.id === selecionado;
+    let tracado = "", caneta = false;
+    const pontos = d.meses.map((mes, i) => {
+      const v = valor(c, i);
+      if (v == null) { caneta = false; return ""; }
+      tracado += `${caneta ? "L" : "M"}${x(i)},${y(v)} `;
+      caneta = true;
+      const texto = modo === "pct" ? `${Math.round(v)}%` : R(v);
+      return `<circle data-cen="${c.id ?? ""}" cx="${x(i)}" cy="${y(v)}" r="${sel ? 4 : 3}" fill="var(--cartao)" stroke="${corCen(k)}" stroke-width="2"><title>${nomeMes(mes)} · ${esc(c.nome)} · ${texto}</title></circle>`;
+    }).join("");
+    return `<path data-cen="${c.id ?? ""}" data-sel="${sel ? 1 : 0}" d="${tracado.trim()}" fill="none" stroke="${corCen(k)}" stroke-width="${sel ? 3.5 : 2}"${tracejadoCen(k)} stroke-linejoin="round"/>${pontos}`;
+  }).join("");
+  const legenda = d.cenarios.map((c, k) => `<span><i style="background:${corCen(k)}${k < 6 ? "" : ";opacity:.6"}"></i>${esc(c.nome)}</span>`).join("");
+  return `<div class="grafico"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${modo === "pct" ? "Comprometimento da renda" : "Saldo do mês"} por mês, um traço por cenário">
+    ${grade}<line class="ref" x1="${m.l}" x2="${W - m.r}" y1="${y(ref)}" y2="${y(ref)}" stroke="var(--ref)" stroke-width="1.5" stroke-dasharray="5 4"/>
+    ${meses}${series}</svg></div><div class="legenda">${legenda}</div>`;
+}
+
 async function telaProjecoes() {
   let d = await api("GET", "/api/projecao");
   let cen = d.cenarios.find((c) => c.id === estado.cenarioSel) || d.cenarios[0];
@@ -624,6 +668,10 @@ async function telaProjecoes() {
         ${linha("saldo", "Saldo do mês")}${linha("acumulado", "Acumulado")}${linha("comp", "Comprometimento")}
       </tbody>
     </table></div></section>
+    <section class="cartao">
+      <header><h3 id="titulo-graf"></h3><span class="soma"><button id="bt-modo-graf"></button></span></header>
+      <div id="proj-grafico"></div>
+    </section>
     <section class="cartao" id="sec-previstas">
       <header><h3>Contas previstas</h3><span class="soma"><button id="bt-prevista">+ conta prevista</button></span></header>
       ${tabelaContas(d.previstas)}
@@ -655,11 +703,16 @@ async function telaProjecoes() {
       inp.title = { digitada: "Digitado aqui", real: "Valor da aba Entradas", vazia: "Sem entrada prevista" }[e.origem];
       if (inp !== document.activeElement) inp.value = e.origem === "vazia" ? "" : numero.format(e.valor);
     });
+    const emPct = estado.modoGraf === "pct";
+    $("#titulo-graf").textContent = emPct ? "Comprometimento da renda" : "Saldo do mês";
+    $("#bt-modo-graf").textContent = emPct ? "Ver saldo (R$)" : "Ver comprometimento (%)";
+    $("#proj-grafico").innerHTML = graficoProjecao(d, estado.modoGraf, cen.id);
     const pm = cen.pior_mes;
     $("#pior-mes").innerHTML = `Pior mês deste cenário: <strong>${nomeMes(pm.mes)}</strong> · saldo
       <strong class="${sinal(pm.saldo)}">${R(pm.saldo)}</strong>`;
   };
   pintar();
+  $("#bt-modo-graf").onclick = () => { estado.modoGraf = estado.modoGraf === "pct" ? "saldo" : "pct"; pintar(); };
 
   $$("input[data-pm]").forEach((inp) => {
     inp.onchange = async () => {

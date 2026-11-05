@@ -12,6 +12,8 @@
   --barra-entrada: #3d8bd9;
   --barra-despesa: #e0794a;
   --linha-acum: #1d2330;
+  --cen-1: #2f6fde; --cen-2: #d95f02; --cen-3: #1b9e77; --cen-4: #7570b3; --cen-5: #c2185b; --cen-6: #8c6d1f;
+  --ref: var(--negativo);
   --raio: 10px;
   color-scheme: light;
 }
@@ -29,6 +31,7 @@
     --barra-entrada: #5aa2e6;
     --barra-despesa: #ee8f63;
     --linha-acum: #e7e9ee;
+    --cen-1: #6ea0ff; --cen-2: #ff9a4d; --cen-3: #3fd1a0; --cen-4: #a9a3e8; --cen-5: #ff7fb0; --cen-6: #d6b24a;
     color-scheme: dark;
   }
 }
