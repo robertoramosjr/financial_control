@@ -168,3 +168,17 @@ dialog::backdrop { background: rgba(10, 14, 20, .45); }
   .esconde-celular { display: none; }
   .nova-linha { display: none; }
 }
+
+/* aba Projeções */
+.gerir-cen { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+.destaque { margin: 0 0 12px; font-size: 14px; }
+.proj td:first-child { white-space: nowrap; }
+.proj th.num, .proj td.num { padding: 5px 8px; min-width: 84px; }
+.proj td { padding: 5px 4px; }
+.proj input { width: 100%; min-width: 86px; text-align: right; padding: 5px 6px; font-variant-numeric: tabular-nums; }
+.proj input[data-origem="real"], .proj input[data-origem="vazia"] { color: var(--suave); font-style: italic; }
+.proj tr[data-linha="saldo"] td { border-top: 1px solid var(--borda); font-weight: 600; }
+.proj tr[data-linha="comp"] td { font-weight: 600; }
+.proj tr.linha-cenario td { background: color-mix(in srgb, var(--primario) 10%, transparent); }
+.linha-conta { display: grid; grid-template-columns: 1fr 70px 1fr auto; gap: 6px; margin-bottom: 8px; }
+.linha-conta input[name="descricao"] { grid-column: 1 / -1; }

@@ -20,6 +20,7 @@ const estado = {
   categorias: [],
   filtroParc: "em_andamento",
   mostrarEncerradas: false,
+  cenarioSel: null,   // aba Projeções: id do cenário aberto (null = "Sem a compra")
 };
 
 function esc(s) {
@@ -537,6 +538,174 @@ async function telaEntradas(ano) {
   $$("[data-fonte]").forEach((b) => (b.onclick = () => modalFonte(d.fontes.find((f) => f.id === Number(b.dataset.fonte)))));
 }
 
+// ------------------------------------------------------------ aba Projeções
+
+const pct = (x) => (x == null ? "–" : `${Math.round(x * 100)}%`);
+const valorOuTraco = (v) => (v ? numero.format(v) : "–");
+const somaMes = (contas, i) => contas.reduce((s, c) => s + c.valores[i], 0);
+
+const linhaContaHtml = (c) => `<div class="linha-conta">
+  <input name="descricao" placeholder="Descrição" value="${esc(c?.descricao || "")}">
+  <input name="valor" inputmode="decimal" placeholder="Valor total" value="${c ? numero.format(c.total) : ""}">
+  <input name="n_parcelas" type="number" min="1" step="1" value="${c?.n_parcelas || 1}" title="Número de parcelas">
+  <input name="primeira_parcela" type="month" value="${c?.primeira_parcela || MES_ATUAL}" title="Mês da primeira parcela">
+  <button type="button" class="icone" data-remover title="Remover linha">×</button></div>`;
+
+function lerLinhasContas(form) {
+  const contas = $$(".linha-conta", form).map((l) => {
+    const v = (n) => $(`[name="${n}"]`, l).value;
+    return { descricao: v("descricao").trim(), valor: v("valor"), n: v("n_parcelas"), primeira: v("primeira_parcela") };
+  }).filter((l) => l.descricao || l.valor.trim());
+  return contas.map((l) => ({
+    descricao: l.descricao, valor: exigirValor(l.valor, "Valor total"),
+    n_parcelas: Number(l.n), primeira_parcela: l.primeira,
+  }));
+}
+
+/** Formulário de contas de projeção: várias linhas de uma vez (novas) ou uma só (edição). */
+function modalContas({ cenarioId, conta }) {
+  abrirModal({
+    titulo: conta ? "Editar conta" : cenarioId == null ? "Contas previstas" : "Contas do cenário",
+    corpo: conta ? linhaContaHtml(conta).replace(/<button[^>]*data-remover[^>]*>.*?<\/button>/, "")
+      : `<div id="linhas-contas">${linhaContaHtml()}</div>
+         <button type="button" class="discreto" id="bt-mais-linha">+ linha</button>`,
+    salvar: async (_, form) => {
+      const contas = lerLinhasContas(form);
+      if (!contas.length) throw new Error("Inclua pelo menos uma conta");
+      if (conta) await api("PUT", `/api/projecao/contas/${conta.id}`, contas[0]);
+      else await api("POST", "/api/projecao/contas", { cenario_id: cenarioId, contas });
+    },
+    apagar: conta && (async () => {
+      if (!confirm(`Apagar "${conta.descricao}"?`)) return false;
+      await api("DELETE", `/api/projecao/contas/${conta.id}`);
+      return true;
+    }),
+    aoAbrir: () => {
+      if (conta) return;
+      $("#bt-mais-linha").onclick = () => $("#linhas-contas").insertAdjacentHTML("beforeend", linhaContaHtml());
+      $("#linhas-contas").onclick = (e) => { if (e.target.matches("[data-remover]")) e.target.closest(".linha-conta").remove(); };
+    },
+  });
+}
+
+async function telaProjecoes() {
+  let d = await api("GET", "/api/projecao");
+  let cen = d.cenarios.find((c) => c.id === estado.cenarioSel) || d.cenarios[0];
+  estado.cenarioSel = cen.id;
+  const ehBase = cen.id === null;
+  const linha = (chave, rotulo, cls = "") => `<tr data-linha="${chave}" class="${cls}"><td>${rotulo}</td>${
+    d.meses.map((_, i) => `<td class="num" data-i="${i}"></td>`).join("")}</tr>`;
+  const tabelaContas = (contas) => contas.length ? `<div class="rolagem"><table><thead><tr><th>Descrição</th>
+      <th class="num">Total</th><th class="num">Parcelas</th><th>1ª parcela</th></tr></thead><tbody>${contas.map((c) => `
+      <tr class="clicavel" data-conta="${c.id}"><td>${esc(c.descricao)}</td><td class="num">${R(c.total)}</td>
+      <td class="num">${c.n_parcelas}x</td><td>${mesCurto(c.primeira_parcela)}</td></tr>`).join("")}</tbody></table></div>`
+    : `<p class="vazio">Nenhuma conta ainda.</p>`;
+
+  $("#conteudo").innerHTML = `
+    <div class="cabecalho">
+      <strong style="font-size:18px">Projeções</strong><span class="espaco"></span>
+      <button class="primario" id="bt-novo-cen">+ Cenário</button>
+    </div>
+    <div class="gerir-cen">
+      <div class="filtros" id="proj-cenarios">${d.cenarios.map((c) =>
+        `<button data-cen="${c.id ?? ""}" class="${c.id === cen.id ? "ativo" : ""}">${esc(c.nome)}</button>`).join("")}</div>
+      ${ehBase ? "" : `<button id="bt-ren-cen">Renomear</button><button id="bt-dup-cen">Duplicar</button>
+        <button class="perigo" id="bt-apg-cen">Apagar</button>`}
+    </div>
+    <p class="dica">Digite as entradas previstas de cada mês (em cinza itálico: valor da aba Entradas). Contas previstas valem para todos os cenários; as do cenário, só para ele.</p>
+    <p id="pior-mes" class="destaque"></p>
+    <section class="cartao"><div class="rolagem"><table class="proj">
+      <thead><tr><th></th>${d.meses.map((m) => `<th class="num">${mesCurto(m)}</th>`).join("")}</tr></thead>
+      <tbody>
+        <tr data-linha="entradas"><td>Entradas previstas</td>${d.meses.map((_, i) =>
+          `<td><input data-pm="${i}" data-origem="" inputmode="decimal"></td>`).join("")}</tr>
+        ${linha("rec", "Recorrências")}${linha("parc", "Parcelas em andamento")}${linha("avulsos", "Lançamentos avulsos")}
+        ${linha("previstas", "Contas previstas")}${linha("cenario", "Do cenário", "linha-cenario")}
+        ${linha("saldo", "Saldo do mês")}${linha("acumulado", "Acumulado")}${linha("comp", "Comprometimento")}
+      </tbody>
+    </table></div></section>
+    <section class="cartao" id="sec-previstas">
+      <header><h3>Contas previstas</h3><span class="soma"><button id="bt-prevista">+ conta prevista</button></span></header>
+      ${tabelaContas(d.previstas)}
+    </section>
+    ${ehBase ? "" : `<section class="cartao" id="sec-conta">
+      <header><h3>Contas de ${esc(cen.nome)}</h3><span class="soma"><button id="bt-conta">+ conta no cenário</button></span></header>
+      ${tabelaContas(cen.contas)}
+    </section>`}`;
+
+  // Atualiza só os números; nunca recria os <input> (recriar derrubaria o foco da célula clicada).
+  const pintar = () => {
+    cen = d.cenarios.find((c) => c.id === cen.id) || d.cenarios[0];
+    const cel = (chave, i, texto, cls = "") => {
+      const td = $(`tr[data-linha="${chave}"] td[data-i="${i}"]`);
+      td.textContent = texto;
+      td.className = `num ${cls}`;
+    };
+    d.meses.forEach((_, i) => {
+      cel("rec", i, valorOuTraco(d.base.recorrencias[i]));
+      cel("parc", i, valorOuTraco(d.base.parcelas[i]));
+      cel("avulsos", i, valorOuTraco(d.base.avulsos[i]));
+      cel("previstas", i, valorOuTraco(somaMes(d.previstas, i)));
+      cel("cenario", i, valorOuTraco(somaMes(cen.contas, i)));
+      cel("saldo", i, R(cen.saldo[i]), sinal(cen.saldo[i]));
+      cel("acumulado", i, R(cen.acumulado[i]), sinal(cen.acumulado[i]));
+      cel("comp", i, pct(cen.comprometimento[i]));
+      const inp = $(`input[data-pm="${i}"]`), e = d.entradas[i];
+      inp.dataset.origem = e.origem;
+      inp.title = { digitada: "Digitado aqui", real: "Valor da aba Entradas", vazia: "Sem entrada prevista" }[e.origem];
+      if (inp !== document.activeElement) inp.value = e.origem === "vazia" ? "" : numero.format(e.valor);
+    });
+    const pm = cen.pior_mes;
+    $("#pior-mes").innerHTML = `Pior mês deste cenário: <strong>${nomeMes(pm.mes)}</strong> · saldo
+      <strong class="${sinal(pm.saldo)}">${R(pm.saldo)}</strong>`;
+  };
+  pintar();
+
+  $$("input[data-pm]").forEach((inp) => {
+    inp.onchange = async () => {
+      const v = lerValor(inp.value);
+      if (Number.isNaN(v)) return aviso("Valor inválido", true);
+      try {
+        await api("PUT", "/api/projecao/entradas", { mes: d.meses[Number(inp.dataset.pm)], valor: v });
+        d = await api("GET", "/api/projecao");
+        pintar();
+        aviso("Salvo");
+      } catch (e) { aviso(e.message, true); }
+    };
+    inp.onkeydown = (e) => { if (e.key === "Enter") inp.blur(); };
+  });
+
+  const modalCenario = (c) => abrirModal({
+    titulo: c ? "Renomear cenário" : "Novo cenário",
+    corpo: `<label class="campo"><span>Nome</span><input name="nome" required value="${esc(c?.nome || "")}"></label>`,
+    salvar: async (dd) => {
+      const r = await api(c ? "PUT" : "POST", c ? `/api/projecao/cenarios/${c.id}` : "/api/projecao/cenarios", dd);
+      estado.cenarioSel = r.id;
+    },
+  });
+  $$("#proj-cenarios [data-cen]").forEach((b) => (b.onclick = () => {
+    estado.cenarioSel = b.dataset.cen === "" ? null : Number(b.dataset.cen);
+    render();
+  }));
+  $("#bt-novo-cen").onclick = () => modalCenario(null);
+  if (!ehBase) {
+    $("#bt-ren-cen").onclick = () => modalCenario(cen);
+    $("#bt-dup-cen").onclick = async () => {
+      try { estado.cenarioSel = (await api("POST", `/api/projecao/cenarios/${cen.id}/duplicar`)).id; render(); }
+      catch (e) { aviso(e.message, true); }
+    };
+    $("#bt-apg-cen").onclick = async () => {
+      if (!confirm(`Apagar o cenário "${cen.nome}" e as contas dele?`)) return;
+      try { await api("DELETE", `/api/projecao/cenarios/${cen.id}`); estado.cenarioSel = null; render(); }
+      catch (e) { aviso(e.message, true); }
+    };
+    $("#bt-conta").onclick = () => modalContas({ cenarioId: cen.id });
+  }
+  $("#bt-prevista").onclick = () => modalContas({ cenarioId: null });
+  $$("tr[data-conta]").forEach((tr) => (tr.onclick = () =>
+    modalContas({ conta: [...d.previstas, ...cen.contas].find((c) => c.id === Number(tr.dataset.conta)) })));
+}
+
 // ------------------------------------------------------------ aba Resumo
 
 function graficoAno(meses) {
@@ -659,6 +828,7 @@ async function render() {
       recorrencias: telaRecorrencias,
       parcelamentos: telaParcelamentos,
       entradas: () => telaEntradas(ano),
+      projecoes: telaProjecoes,
       resumo: () => telaResumo(ano),
       categorias: telaCategorias,
     };
