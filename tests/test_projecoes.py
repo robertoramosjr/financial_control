@@ -1,3 +1,4 @@
+import json
 import sys
 import tempfile
 import unittest
@@ -139,6 +140,104 @@ class TestProjecao(BancoTemporario):
             entrada_digitada(con, INICIO, 1)
             depois = (app.visao_mes(con, INICIO), app.resumo_ano(con, 2026))
         self.assertEqual(antes, depois)
+
+
+def chamar(metodo, caminho, corpo=None):
+    ler = (lambda: json.dumps(corpo).encode()) if corpo is not None else (lambda: b"")
+    r = app.tratar(app.Requisicao(metodo, caminho, "", None, ler, "127.0.0.1"))
+    return r.status, json.loads(r.corpo)
+
+
+def contagem(tabela):
+    with app.conectar() as con:
+        return con.execute(f"SELECT COUNT(*) FROM {tabela}").fetchone()[0]
+
+
+CONTA = {"descricao": "Notebook", "valor": 3000, "n_parcelas": 6, "primeira_parcela": "2026-12"}
+
+
+class TestApi(BancoTemporario):
+    def novo_cenario(self, nome="Notebook 6x"):
+        status, r = chamar("POST", "/api/projecao/cenarios", {"nome": nome})
+        self.assertEqual(status, 200)
+        return r["id"]
+
+    def test_lote_grava_todas_as_contas(self):
+        cid = self.novo_cenario()
+        status, _ = chamar("POST", "/api/projecao/contas", {"cenario_id": cid, "contas": [
+            CONTA, {**CONTA, "descricao": "Viagem", "valor": 900, "n_parcelas": 3}]})
+        self.assertEqual(status, 200)
+        _, p = chamar("GET", "/api/projecao")
+        self.assertEqual([c["descricao"] for c in p["cenarios"][1]["contas"]], ["Notebook", "Viagem"])
+
+    def test_lote_com_linha_invalida_nao_grava_nenhuma(self):
+        cid = self.novo_cenario()
+        ruins = [{"n_parcelas": 0}, {"n_parcelas": 1.5}, {"valor": 0}, {"valor": -5}, {"valor": "abc"},
+                 {"primeira_parcela": "2026-13"}, {"descricao": " "}]
+        for ruim in ruins:
+            status, _ = chamar("POST", "/api/projecao/contas", {"cenario_id": cid, "contas": [CONTA, {**CONTA, **ruim}]})
+            self.assertEqual(status, 400, ruim)
+        for corpo in ({"cenario_id": 999, "contas": [CONTA]}, {"cenario_id": cid, "contas": []}):
+            self.assertEqual(chamar("POST", "/api/projecao/contas", corpo)[0], 400, corpo)
+        self.assertEqual(contagem("projecao_contas"), 0)
+
+    def test_entrada_projetada_vazio_remove_e_zero_fica(self):
+        self.assertEqual(chamar("PUT", "/api/projecao/entradas", {"mes": "2026-11", "valor": 1234.56})[0], 200)
+        self.assertEqual(chamar("PUT", "/api/projecao/entradas", {"mes": "2026-12", "valor": 0})[0], 200)
+        _, p = chamar("GET", "/api/projecao")
+        self.assertEqual(p["entradas"][1], {"valor": 0.0, "origem": "digitada"})
+        self.assertEqual(chamar("PUT", "/api/projecao/entradas", {"mes": "2026-11", "valor": ""})[0], 200)
+        self.assertEqual(contagem("projecao_entradas"), 1)
+        status, r = chamar("PUT", "/api/projecao/entradas", {"mes": "2026-11", "valor": "1.234,56"})
+        self.assertEqual((status, r["erro"].split(":")[0]), (400, "Valor inválido"))
+        self.assertEqual(chamar("PUT", "/api/projecao/entradas", {"mes": "2026-1", "valor": 5})[0], 400)
+
+    def test_cenario_nome_vazio_ou_repetido(self):
+        self.novo_cenario("Notebook")
+        self.assertEqual(chamar("POST", "/api/projecao/cenarios", {"nome": "  "})[0], 400)
+        status, r = chamar("POST", "/api/projecao/cenarios", {"nome": "NOTEBOOK"})
+        self.assertEqual(status, 400)
+        self.assertIn("Já existe o cenário", r["erro"])
+
+    def test_apagar_cenario_apaga_suas_contas_e_preserva_previstas(self):
+        cid = self.novo_cenario()
+        chamar("POST", "/api/projecao/contas", {"cenario_id": cid, "contas": [CONTA]})
+        chamar("POST", "/api/projecao/contas", {"cenario_id": None, "contas": [CONTA]})
+        self.assertEqual(chamar("DELETE", f"/api/projecao/cenarios/{cid}")[0], 200)
+        with app.conectar() as con:
+            restantes = [r["cenario_id"] for r in con.execute("SELECT cenario_id FROM projecao_contas")]
+        self.assertEqual(restantes, [None])
+
+    def test_duplicar_cenario_copia_contas(self):
+        cid = self.novo_cenario("Notebook")
+        chamar("POST", "/api/projecao/contas", {"cenario_id": cid, "contas": [CONTA, {**CONTA, "descricao": "B"}]})
+        _, a = chamar("POST", f"/api/projecao/cenarios/{cid}/duplicar")
+        _, b = chamar("POST", f"/api/projecao/cenarios/{cid}/duplicar")
+        _, p = chamar("GET", "/api/projecao")
+        por_id = {c["id"]: c for c in p["cenarios"]}
+        self.assertEqual(por_id[a["id"]]["nome"], "Cópia de Notebook")
+        self.assertEqual(por_id[b["id"]]["nome"], "Cópia de Notebook 2")
+        self.assertEqual([c["descricao"] for c in por_id[a["id"]]["contas"]], ["Notebook", "B"])
+        self.assertEqual(contagem("projecao_contas"), 6)
+
+    def test_renomear_cenario(self):
+        cid = self.novo_cenario("Velho")
+        self.assertEqual(chamar("PUT", f"/api/projecao/cenarios/{cid}", {"nome": "Novo"})[0], 200)
+        _, p = chamar("GET", "/api/projecao")
+        self.assertEqual(p["cenarios"][1]["nome"], "Novo")
+
+    def test_editar_e_apagar_conta(self):
+        cid = self.novo_cenario()
+        _, r = chamar("POST", "/api/projecao/contas", {"cenario_id": cid, "contas": [CONTA]})
+        conta_id = r["id"][0]
+        self.assertEqual(chamar("PUT", f"/api/projecao/contas/{conta_id}", {**CONTA, "valor": 1200, "n_parcelas": 12})[0], 200)
+        _, p = chamar("GET", "/api/projecao")
+        c = p["cenarios"][1]["contas"][0]
+        self.assertEqual((c["total"], c["n_parcelas"]), (1200.0, 12))
+        self.assertEqual(chamar("DELETE", f"/api/projecao/contas/{conta_id}")[0], 200)
+        self.assertEqual(contagem("projecao_contas"), 0)
+        status, r = chamar("PUT", "/api/projecao/contas/999", CONTA)
+        self.assertEqual((status, r["erro"]), (400, "Conta não encontrada"))
 
 
 if __name__ == "__main__":

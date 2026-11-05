@@ -665,6 +665,76 @@ def projecao(con, inicio, n_meses=12):
             "previstas": previstas, "cenarios": cenarios}
 
 
+def salvar_entrada_projetada(con, d):
+    mes, valor = exigir_mes(d, "mes"), d.get("valor")
+    if valor in (None, ""):
+        con.execute("DELETE FROM projecao_entradas WHERE mes = ?", (mes,))
+    else:
+        con.execute("""INSERT INTO projecao_entradas (mes, valor_centavos) VALUES (?, ?)
+                       ON CONFLICT (mes) DO UPDATE SET valor_centavos = excluded.valor_centavos""",
+                    (mes, centavos(valor)))
+
+
+def salvar_cenario(con, d, cid=None):
+    nome = exigir(d, "nome")
+    try:
+        if cid is None:
+            ordem = con.execute("SELECT COALESCE(MAX(ordem), -1) + 1 FROM cenarios").fetchone()[0]
+            return con.execute("INSERT INTO cenarios (nome, ordem) VALUES (?, ?)", (nome, ordem)).lastrowid
+        if con.execute("UPDATE cenarios SET nome = ? WHERE id = ?", (nome, cid)).rowcount == 0:
+            raise ErroEntrada("Cenário não encontrado")
+        return cid
+    except sqlite3.IntegrityError:
+        raise ErroEntrada(f"Já existe o cenário {nome!r}")
+
+
+def duplicar_cenario(con, cid, _d):
+    orig = con.execute("SELECT nome FROM cenarios WHERE id = ?", (cid,)).fetchone()
+    if not orig:
+        raise ErroEntrada("Cenário não encontrado")
+    nome, n = f"Cópia de {orig['nome']}", 1
+    while con.execute("SELECT 1 FROM cenarios WHERE nome = ?", (nome,)).fetchone():
+        n += 1
+        nome = f"Cópia de {orig['nome']} {n}"
+    novo = salvar_cenario(con, {"nome": nome})
+    con.execute("""INSERT INTO projecao_contas (cenario_id, descricao, total_centavos, n_parcelas, primeira_parcela)
+                   SELECT ?, descricao, total_centavos, n_parcelas, primeira_parcela
+                   FROM projecao_contas WHERE cenario_id = ? ORDER BY id""", (novo, cid))
+    return novo
+
+
+def dados_conta_projecao(d):
+    total = centavos(exigir(d, "valor"))
+    if total <= 0:
+        raise ErroEntrada("Valor deve ser maior que zero")
+    n = d.get("n_parcelas")
+    if isinstance(n, str) and n.strip().isdigit():
+        n = int(n)
+    if not isinstance(n, int) or isinstance(n, bool) or n < 1:
+        raise ErroEntrada("Número de parcelas deve ser pelo menos 1")
+    return (exigir(d, "descricao"), total, n, exigir_mes(d, "primeira_parcela"))
+
+
+def salvar_contas_projecao(con, d):
+    cid = d.get("cenario_id")
+    if cid is not None and not con.execute("SELECT 1 FROM cenarios WHERE id = ?", (cid,)).fetchone():
+        raise ErroEntrada("Cenário não encontrado")
+    contas = d.get("contas")
+    if not isinstance(contas, list) or not contas:
+        raise ErroEntrada("Inclua pelo menos uma conta")
+    campos = [dados_conta_projecao(c) for c in contas]      # valida tudo antes de gravar qualquer uma
+    return [con.execute("""INSERT INTO projecao_contas (cenario_id, descricao, total_centavos, n_parcelas,
+                           primeira_parcela) VALUES (?, ?, ?, ?, ?)""", (cid,) + c).lastrowid for c in campos]
+
+
+def salvar_conta_projecao(con, d, conta_id):
+    campos = dados_conta_projecao(d)
+    if con.execute("""UPDATE projecao_contas SET descricao=?, total_centavos=?, n_parcelas=?, primeira_parcela=?
+                      WHERE id = ?""", campos + (conta_id,)).rowcount == 0:
+        raise ErroEntrada("Conta não encontrada")
+    return conta_id
+
+
 # ------------------------------------------------------------------ HTTP
 
 def apagar(tabela, tipo_pag=None):
@@ -702,6 +772,15 @@ ROTAS = [
 
     ("GET", r"/api/entradas/(\d{4})", lambda con, a, q: entradas_ano(con, int(a))),
     ("PUT", r"/api/entradas", lambda con, _, d: salvar_entrada(con, d)),
+    ("GET", r"/api/projecao", lambda con, _, q: projecao(con, date.today().isoformat()[:7])),
+    ("PUT", r"/api/projecao/entradas", lambda con, _, d: salvar_entrada_projetada(con, d)),
+    ("POST", r"/api/projecao/cenarios", lambda con, _, d: salvar_cenario(con, d)),
+    ("PUT", r"/api/projecao/cenarios/(\d+)", lambda con, i, d: salvar_cenario(con, d, int(i))),
+    ("DELETE", r"/api/projecao/cenarios/(\d+)", lambda con, i, d: apagar("cenarios")(con, int(i), d)),
+    ("POST", r"/api/projecao/cenarios/(\d+)/duplicar", lambda con, i, d: duplicar_cenario(con, int(i), d)),
+    ("POST", r"/api/projecao/contas", lambda con, _, d: salvar_contas_projecao(con, d)),
+    ("PUT", r"/api/projecao/contas/(\d+)", lambda con, i, d: salvar_conta_projecao(con, d, int(i))),
+    ("DELETE", r"/api/projecao/contas/(\d+)", lambda con, i, d: apagar("projecao_contas")(con, int(i), d)),
     ("POST", r"/api/fontes", lambda con, _, d: salvar_fonte(con, d)),
     ("PUT", r"/api/fontes/(\d+)", lambda con, i, d: salvar_fonte(con, d, int(i))),
     ("DELETE", r"/api/fontes/(\d+)", lambda con, i, d: apagar("fontes_renda")(con, int(i), d)),
