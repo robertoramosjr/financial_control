@@ -239,6 +239,21 @@ class TestApi(BancoTemporario):
         status, r = chamar("PUT", "/api/projecao/contas/999", CONTA)
         self.assertEqual((status, r["erro"]), (400, "Conta não encontrada"))
 
+    def test_conta_com_limites_absurdos_e_recusada_sem_erro_500(self):
+        cid = self.novo_cenario()
+        ruins = [{"n_parcelas": 601}, {"n_parcelas": 10 ** 30}, {"valor": "inf"}, {"valor": float("inf")},
+                 {"valor": 0.01, "n_parcelas": 3}]
+        for ruim in ruins:
+            status, _ = chamar("POST", "/api/projecao/contas", {"cenario_id": cid, "contas": [{**CONTA, **ruim}]})
+            self.assertEqual(status, 400, ruim)
+        self.assertEqual(contagem("projecao_contas"), 0)
+        self.assertEqual(chamar("POST", "/api/projecao/contas", {"cenario_id": cid, "contas": [{**CONTA, "n_parcelas": 600}]})[0], 200)
+
+    def test_entrada_projetada_negativa_e_recusada(self):
+        self.assertEqual(chamar("PUT", "/api/projecao/entradas", {"mes": "2026-11", "valor": -5})[0], 400)
+        self.assertEqual(chamar("PUT", "/api/projecao/entradas", {"mes": "2026-11", "valor": float("inf")})[0], 400)
+        self.assertEqual(contagem("projecao_entradas"), 0)
+
 
 if __name__ == "__main__":
     unittest.main()

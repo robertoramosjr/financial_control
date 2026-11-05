@@ -271,7 +271,7 @@ def cadastrar_usuario(nome):
 def centavos(valor):
     try:
         return round(float(str(valor).replace(",", ".")) * 100)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         raise ErroEntrada(f"Valor inválido: {valor!r}")
 
 
@@ -611,6 +611,9 @@ def salvar_fonte(con, d, fid=None):
 
 # ------------------------------------------------------------- projeções
 
+MAX_PARCELAS_PROJECAO = 600
+
+
 def parcela_centavos(total_centavos, n):
     """Parcela arredondada ao centavo mais próximo (meio sobe), como inteiros."""
     return (total_centavos * 2 + n) // (2 * n)
@@ -670,9 +673,12 @@ def salvar_entrada_projetada(con, d):
     if valor in (None, ""):
         con.execute("DELETE FROM projecao_entradas WHERE mes = ?", (mes,))
     else:
+        valor_centavos = centavos(valor)
+        if valor_centavos < 0:
+            raise ErroEntrada("A entrada prevista não pode ser negativa")
         con.execute("""INSERT INTO projecao_entradas (mes, valor_centavos) VALUES (?, ?)
                        ON CONFLICT (mes) DO UPDATE SET valor_centavos = excluded.valor_centavos""",
-                    (mes, centavos(valor)))
+                    (mes, valor_centavos))
 
 
 def salvar_cenario(con, d, cid=None):
@@ -711,7 +717,11 @@ def dados_conta_projecao(d):
     if isinstance(n, str) and n.strip().isdigit():
         n = int(n)
     if not isinstance(n, int) or isinstance(n, bool) or n < 1:
-        raise ErroEntrada("Número de parcelas deve ser pelo menos 1")
+        raise ErroEntrada("Número de parcelas deve ser um inteiro, pelo menos 1")
+    if n > MAX_PARCELAS_PROJECAO:
+        raise ErroEntrada(f"Número de parcelas deve ser no máximo {MAX_PARCELAS_PROJECAO}")
+    if parcela_centavos(total, n) == 0:
+        raise ErroEntrada("Valor total pequeno demais para esse número de parcelas")
     return (exigir(d, "descricao"), total, n, exigir_mes(d, "primeira_parcela"))
 
 
