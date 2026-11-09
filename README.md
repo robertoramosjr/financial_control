@@ -3,6 +3,10 @@
 Controle de despesas da casa: compras avulsas, recorrências (assinaturas/contas mensais),
 parcelamentos, entradas, projeções por cenário e resumo anual. Python puro (sem dependências) + SQLite.
 
+Na aba Projeções, clicar no nome de um mês abre as despesas dele (recorrências e parcelas) e permite
+cortar, reduzir ou pausar uma delas só na projeção (nada real muda), para todos os cenários ou só um.
+O gráfico pode mostrar cada cenário também sem os ajustes.
+
 ## No computador
 
     python3 app.py

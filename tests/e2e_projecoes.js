@@ -153,6 +153,79 @@ const check = (nome, ok, extra = "") => { console.log(`${ok ? "PASS" : "FAIL"}  
   await clicar("#bt-apg-cen"); await dorme(700);
   check("apagar o selecionado volta para 'Sem a compra'", (await txt("#proj-cenarios .ativo")) === "Sem a compra", await txt("#proj-cenarios .ativo"));
 
+  // ajustes em despesas fixas
+  const comb = (await api("POST", "/api/recorrencias", { descricao: "Combustível", dia: 10, valor: 900, categoria_id: 1, inicio: "2020-01" })).id;
+  const spot = (await api("POST", "/api/recorrencias", { descricao: "Spotify", dia: 12, valor: 30, categoria_id: 1, inicio: "2020-01" })).id;
+  const cen = (await api("POST", "/api/projecao/cenarios", { nome: "Corte" })).id;
+  const mesesP = (await api("GET", "/api/projecao")).meses;
+  const totaisReais = async () => JSON.stringify((await api("GET", `/api/mes/${mes}`)).totais);
+  const reaisAntes = await totaisReais();
+  await ev(`render()`); await dorme(800);
+  const rec = (i) => txt(`tr[data-linha="rec"] td[data-i="${i}"]`);
+  const abrirMes = async (i) => {   // idempotente: clicar no mês já aberto o fecharia
+    if ((await ev(`document.querySelector("th.mes-aberto .mes-btn")?.dataset.mesI`)) !== String(i)) await clicar(`th .mes-btn[data-mes-i="${i}"]`);
+    await esperar(`!!document.querySelector("#proj-painel tr")`);
+  };
+  const linhaPainel = (nome, botao) => ev(`(()=>{const tr=[...document.querySelectorAll("#proj-painel tr")].find(t=>t.textContent.includes(${JSON.stringify(nome)}));tr.querySelector(${JSON.stringify(botao)}).click();return true})()`);
+  const aplicarModal = async (valor, alcance, escopo) => {
+    await esperar(`document.querySelector("#modal").open`);
+    await preencher('#modal-form [name="valor"]', valor);
+    await ev(`document.querySelector('#modal [name="alcance"][value="${alcance}"]').checked = true`);
+    await ev(`document.querySelector('#modal [name="escopo"][value="${escopo}"]').checked = true`);
+    await enviarModal();
+  };
+
+  check("recorrências sem ajuste: 3.930 no mês 1", (await rec(1)) === "3.930,00", await rec(1));
+  await abrirMes(1);
+  check("painel lista as despesas do mês", (await txt("#proj-painel")).includes("Combustível") && (await txt("#proj-painel")).includes("Aluguel"));
+  await linhaPainel("Combustível", "[data-editar]");
+  await aplicarModal("700", "diante", "geral");
+  check("ajuste geral em diante: mês 1 vira 3.730", (await rec(1)) === "3.730,00", await rec(1));
+  check("ajuste geral em diante: mês 5 também", (await rec(5)) === "3.730,00", await rec(5));
+  check("ajuste não vale antes do mês escolhido", (await rec(0)) === "3.930,00", await rec(0));
+  check("painel mostra 'era' e selo 'geral'", (await txt("#proj-painel")).includes("era") && (await txt("#proj-painel")).includes("geral"));
+  check("cabeçalho do mês ganha a marca de ajuste", (await txt('th .mes-btn[data-mes-i="1"]')).includes("•"));
+
+  await clicar(`#proj-cenarios button[data-cen="${cen}"]`); await dorme(500);
+  check("ajuste geral vale no cenário", (await rec(1)) === "3.730,00", await rec(1));
+  await abrirMes(1);
+  await linhaPainel("Spotify", "[data-editar]");
+  await aplicarModal("0", "mes", "cenario");
+  check("ajuste de cenário (Spotify 0) vale no cenário", (await rec(1)) === "3.700,00", await rec(1));
+  check("painel: cancelado na projeção", (await txt("#proj-painel")).includes("cancelado na projeção"));
+  await clicar('#proj-cenarios button[data-cen=""]'); await dorme(500);
+  check("ajuste de cenário não vale em 'Sem a compra'", (await rec(1)) === "3.730,00", await rec(1));
+  await abrirMes(1);
+  await linhaPainel("Spotify", "[data-editar]");
+  check("'Sem a compra' não oferece 'só em este cenário'", await ev(`!!document.querySelector('#modal [name="escopo"][value="geral"]') && !document.querySelector('#modal [name="escopo"][value="cenario"]')`));
+  await ev(`document.querySelector("#modal-cancelar").click()`);
+
+  // pausa (intervalo) e desfazer só um mês
+  await api("POST", "/api/projecao/ajustes", { tipo: "rec", ref_id: 1, valor: 2500, mes_inicio: mesesP[1], mes_fim: mesesP[3], escopo: "geral" });
+  await ev(`render()`); await dorme(800);
+  check("pausa: meses 1 a 3 reduzidos, mês 4 volta ao normal", (await rec(3)) === "3.230,00" && (await rec(4)) === "3.730,00", `${await rec(3)} ${await rec(4)}`);
+  await abrirMes(2);
+  await linhaPainel("Aluguel", "[data-desfazer]");
+  check("desfazer num ajuste de vários meses pergunta o alcance", await esperar(`document.querySelector("#modal").open && !document.querySelector("#modal-apagar").hidden`));
+  await enviarModal();
+  check("desfazer só o mês 2: mês 2 normal, 1 e 3 ajustados", (await rec(2)) === "3.730,00" && (await rec(1)) === "3.230,00" && (await rec(3)) === "3.230,00", `${await rec(1)} ${await rec(2)} ${await rec(3)}`);
+
+  // gráfico com e sem ajustes
+  await clicar('#proj-cenarios button[data-cen=""]'); await dorme(300);
+  check("gráfico sem ajustes desligado por padrão", (await svg("path.sem-ajustes")) === 0);
+  await clicar("#ck-sem-ajustes"); await dorme(300);
+  check("'Mostrar sem ajustes' desenha as linhas pontilhadas", (await svg("path.sem-ajustes")) >= 1, String(await svg("path.sem-ajustes")));
+  check("legenda explica o pontilhado", (await ev(`document.querySelector("#proj-grafico .legenda").textContent`)).includes("sem ajustes"));
+  check("gráfico com sem-ajustes sem NaN", await ev(`!document.querySelector("#proj-grafico svg").innerHTML.includes("NaN")`));
+  await clicar("#bt-modo-graf"); await dorme(200);
+  check("troca de eixo mantém as linhas sem ajustes", (await svg("path.sem-ajustes")) >= 1);
+  await clicar("#ck-sem-ajustes"); await dorme(300);
+  check("desligar remove as linhas sem ajustes", (await svg("path.sem-ajustes")) === 0);
+
+  check("totais reais (aba Mês) intactos depois dos ajustes", (await totaisReais()) === reaisAntes, await totaisReais());
+  const reaisDepois = JSON.parse(await totaisReais());
+  check("recorrências reais do mês seguem em 3.930", reaisDepois.recorrencias === 3930, JSON.stringify(reaisDepois));
+
   console.log(falhas ? `${falhas} falha(s)` : "tudo certo");
   ch.kill(); process.exit(falhas ? 1 : 0);
 })();
