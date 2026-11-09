@@ -135,7 +135,19 @@ function exigirValor(txt, nome = "Valor") {
 
 // ------------------------------------------------------------ formulários
 
-function modalAvulso(mes, item) {
+async function carregarProvisoes() {
+  return api("GET", "/api/provisoes");
+}
+
+const provisaoVigente = (p, mes) => p.inicio <= mes && (!p.fim || p.fim >= mes);
+
+/** Provisão que a compra desta categoria desconta por padrão (a primeira por descrição, vigente no mês). */
+function provisaoDaCategoria(provisoes, categoriaId, mes) {
+  return provisoes.find((p) => p.categoria_id === categoriaId && provisaoVigente(p, mes)) || null;
+}
+
+async function modalAvulso(mes, item) {
+  const provisoes = await carregarProvisoes();
   const ehNovo = !item;
   item = item || { descricao: "", data: HOJE_ISO.startsWith(mes) ? HOJE_ISO : "", valor: "", categoria_id: null };
   abrirModal({
@@ -151,9 +163,31 @@ function modalAvulso(mes, item) {
         <label class="campo"><span>Categoria</span><select name="categoria_id" required>${opcoesCategoria(item.categoria_id)}</select></label>
         <label class="campo"><span>Conta no mês de</span><input type="month" name="mes" required value="${esc(item.mes || mes)}"></label>
       </div>
-      <p class="dica">"Conta no mês de" é o mês em que a despesa entra (ex.: o mês da fatura do cartão).</p>`,
+      <label class="campo"><span>Descontar da provisão</span><select name="provisao_id"></select></label>
+      <p class="dica">"Conta no mês de" é o mês em que a despesa entra (ex.: o mês da fatura do cartão).
+        Descontar da provisão tira o valor do disponível dela no mês.</p>`,
+    aoAbrir: (form) => {
+      const sel = form.provisao_id;
+      let escolhida = item.provisao_id ?? null;
+      const opcoes = () => {
+        const m = form.mes.value || mes;
+        const lista = provisoes.filter((p) => provisaoVigente(p, m) || p.id === escolhida);
+        sel.innerHTML = `<option value="">Nenhuma</option>` + lista.map((p) =>
+          `<option value="${p.id}" ${p.id === escolhida ? "selected" : ""}>${esc(p.descricao)}</option>`).join("");
+      };
+      const sugerir = () => {
+        if (!ehNovo || sel.dataset.tocado) return opcoes();
+        escolhida = provisaoDaCategoria(provisoes, Number(form.categoria_id.value), form.mes.value || mes)?.id ?? null;
+        opcoes();
+      };
+      sel.addEventListener("change", () => { sel.dataset.tocado = "1"; escolhida = Number(sel.value) || null; });
+      form.categoria_id.addEventListener("change", sugerir);
+      form.mes.addEventListener("change", sugerir);
+      sugerir();
+    },
     salvar: (d) => api(ehNovo ? "POST" : "PUT", ehNovo ? "/api/lancamentos" : `/api/lancamentos/${item.id}`, {
       ...d, valor: exigirValor(d.valor), categoria_id: Number(d.categoria_id), pago: item.pago || false,
+      provisao_id: Number(d.provisao_id) || null,
     }),
     apagar: ehNovo ? null : async () => {
       if (!confirm(`Apagar "${item.descricao}"?`)) return false;
@@ -257,14 +291,14 @@ function modalParcelamento(p, mesContexto = MES_ATUAL) {
 // ------------------------------------------------------------ aba Mês
 
 async function telaMes(mes) {
-  const v = await api("GET", `/api/mes/${mes}`);
+  const [v, provisoes] = await Promise.all([api("GET", `/api/mes/${mes}`), carregarProvisoes()]);
   const t = v.totais;
   const maiorCat = Math.max(1, ...v.por_categoria.map(([, x]) => x));
 
   const linhaItem = (i, colExtra) => `
     <tr class="clicavel ${i.pago ? "pago" : ""}" data-tipo="${i.tipo}" data-id="${i.id}">
       <td class="chk"><input type="checkbox" title="Pago" ${i.pago ? "checked" : ""}></td>
-      <td>${esc(i.descricao)}</td>
+      <td>${esc(i.descricao)}${i.provisao ? ` <span class="pill prov">${esc(i.provisao)}</span>` : ""}</td>
       <td class="esconde-celular">${colExtra}</td>
       <td class="esconde-celular tag">${esc(i.categoria)}</td>
       <td class="num">${R(i.valor)}</td>
@@ -276,6 +310,22 @@ async function telaMes(mes) {
         <th class="esconde-celular">Categoria</th><th class="num">Valor</th></tr></thead>
       <tbody>${itens.map((i) => linhaItem(i, colExtra(i))).join("")}${extraFim}</tbody>
     </table></div>`;
+
+  const linhaProvisao = (p) => {
+    const largura = p.provisionado ? Math.min(100, (p.gasto / p.provisionado) * 100) : (p.gasto ? 100 : 0);
+    const texto = p.fechado
+      ? `gastou ${R(p.gasto)} de ${R(p.provisionado)}${p.disponivel ? " · a sobra voltou ao saldo" : ""}`
+      : p.estouro ? `estourou ${R(p.estouro)} · gasto ${R(p.gasto)} de ${R(p.provisionado)}`
+        : `disponível ${R(p.disponivel)} de ${R(p.provisionado)} · gasto ${R(p.gasto)}`;
+    return `
+    <tr class="clicavel linha-prov" data-prov-id="${p.id}">
+      <td><strong>Provisionado – ${esc(p.descricao)}</strong>
+        ${p.valor_do_mes ? `<span class="pill">valor deste mês</span>` : ""}
+        <div class="progresso${p.estouro ? " estouro" : ""}"><div class="trilho"><i style="width:${largura}%"></i></div></div>
+        <span class="tag ${p.estouro ? "negativo" : ""}">${texto}</span></td>
+      <td class="num">${R(p.valor)}</td>
+    </tr>`;
+  };
 
   const novaLinha = `
     <tr class="nova-linha">
@@ -311,6 +361,11 @@ async function telaMes(mes) {
           <header><h3>Compras avulsas</h3><span class="tag">${v.avulsos.length}</span><span class="soma">${R(t.avulsos)}</span></header>
           ${tabela(v.avulsos, "Data", (i) => dataBR(i.data), novaLinha)}
         </section>
+        ${v.provisoes.length ? `<section class="cartao" id="card-provisoes">
+          <header><h3>Provisões</h3><span class="tag">${v.provisoes.length}</span>
+            <span class="soma" title="disponível">disponível ${R(t.provisoes)}</span></header>
+          <div class="rolagem"><table><tbody>${v.provisoes.map(linhaProvisao).join("")}</tbody></table></div>
+        </section>` : ""}
         <section class="cartao">
           <header><h3>Recorrências</h3><span class="tag">${v.recorrencias.length}</span><span class="soma">${R(t.recorrencias)}</span></header>
           ${v.recorrencias.length ? tabela(v.recorrencias, "Vence", (i) => dataBR(i.data)) : `<p class="vazio">Nenhuma recorrência neste mês.</p>`}
@@ -339,6 +394,11 @@ async function telaMes(mes) {
 
   const todos = [...v.avulsos, ...v.recorrencias, ...v.parcelas];
   const acha = (tr) => todos.find((i) => i.tipo === tr.dataset.tipo && i.id === Number(tr.dataset.id));
+
+  $$("tr[data-prov-id]").forEach((tr) => {
+    tr.onclick = () => modalProvisaoMes({ prov: v.provisoes.find((p) => p.id === Number(tr.dataset.provId)), mes,
+      compras: v.avulsos.filter((a) => a.provisao_id === Number(tr.dataset.provId)), provisoes });
+  });
 
   $$("tr[data-tipo]").forEach((tr) => {
     tr.onclick = async (ev) => {
@@ -369,8 +429,10 @@ async function telaMes(mes) {
     if (valor === null || Number.isNaN(valor)) return $("#nv-valor").focus();
     if (!cat) return $("#nv-cat").focus();
     try {
-      await api("POST", "/api/lancamentos", { mes, descricao: desc, data: $("#nv-data").value, valor, categoria_id: cat });
-      aviso("Compra adicionada");
+      const prov = provisaoDaCategoria(provisoes, cat, mes);
+      await api("POST", "/api/lancamentos", { mes, descricao: desc, data: $("#nv-data").value, valor, categoria_id: cat,
+        provisao_id: prov?.id ?? null });
+      aviso(prov ? `Compra adicionada · descontada de ${prov.descricao}` : "Compra adicionada");
       sessionStorage.setItem("focoNova", "1");
       await render();
     } catch (e) { aviso(e.message, true); }
@@ -474,6 +536,108 @@ async function telaParcelamentos() {
   $("#bt-novo").onclick = () => modalParcelamento(null);
   $$("[data-f]").forEach((b) => (b.onclick = () => { estado.filtroParc = b.dataset.f; render(); }));
   $$("tr[data-id]").forEach((tr) => (tr.onclick = () => modalParcelamento(lista.find((p) => p.id === Number(tr.dataset.id)))));
+}
+
+// ------------------------------------------------------------ aba Provisões
+
+function modalProvisao(p, mesContexto = MES_ATUAL) {
+  const ehNovo = !p;
+  p = p || { descricao: "", valor: "", categoria_id: null, inicio: mesContexto, fim: null };
+  abrirModal({
+    titulo: ehNovo ? "Nova provisão" : "Editar provisão",
+    corpo: `
+      <label class="campo"><span>Descrição</span><input name="descricao" required value="${esc(p.descricao)}"
+        placeholder="ex.: Saídas, Mercado"></label>
+      <div class="campo-linha">
+        <label class="campo"><span>Valor por mês (R$)</span><input name="valor" required inputmode="decimal"
+          value="${p.valor !== "" ? numero.format(p.valor) : ""}"></label>
+        <label class="campo"><span>Categoria</span><select name="categoria_id" required>${opcoesCategoria(p.categoria_id)}</select></label>
+      </div>
+      <div class="campo-linha">
+        <label class="campo"><span>Primeiro mês</span><input type="month" name="inicio" required value="${esc(p.inicio)}"></label>
+        <label class="campo"><span>Último mês (opcional)</span><input type="month" name="fim" value="${esc(p.fim || "")}"></label>
+      </div>
+      <p class="dica">Ao lançar uma compra, escolha esta provisão em "Descontar da provisão". Para mudar o valor de um mês só, abra a provisão na aba Mês.</p>`,
+    salvar: (d) => api(ehNovo ? "POST" : "PUT", ehNovo ? "/api/provisoes" : `/api/provisoes/${p.id}`, {
+      ...d, valor: exigirValor(d.valor), categoria_id: Number(d.categoria_id), fim: d.fim || null,
+    }),
+    apagar: ehNovo ? null : async () => {
+      if (!confirm(`Apagar a provisão "${p.descricao}"? As compras lançadas nela continuam, como compras avulsas comuns.`)) return false;
+      await api("DELETE", `/api/provisoes/${p.id}`);
+      return true;
+    },
+  });
+}
+
+function modalProvisaoMes({ prov, mes, compras, provisoes }) {
+  const cad = provisoes.find((p) => p.id === prov.id);
+  abrirModal({
+    titulo: `${prov.descricao} em ${nomeMes(mes)}`,
+    corpo: `
+      ${compras.length ? `<ul class="lista-compras">${compras.map((c) =>
+        `<li><span>${esc(c.descricao)}${c.data ? ` · ${dataBR(c.data)}` : ""}</span><span>${R(c.valor)}</span></li>`).join("")}</ul>`
+        : `<p class="tag">Nenhuma compra descontada desta provisão neste mês.</p>`}
+      <label class="campo"><span>Provisionado neste mês (R$)</span><input name="valor" required inputmode="decimal"
+        value="${numero.format(prov.provisionado)}"></label>
+      <p class="dica">Só muda este mês. O valor padrão é ${R(cad?.valor)}.</p>
+      <p>${prov.valor_do_mes ? `<button type="button" id="bt-prov-padrao">Voltar ao valor padrão</button> ` : ""}
+        <button type="button" class="discreto" id="bt-prov-editar">Editar a provisão</button></p>`,
+    aoAbrir: () => {
+      const url = `/api/provisoes/${prov.id}/meses`;
+      $("#bt-prov-padrao")?.addEventListener("click", async () => {
+        try {
+          await api("PUT", url, { mes, valor: null });
+          $("#modal").close();
+          render();
+        } catch (e) { $("#modal-erro").textContent = e.message; }
+      });
+      $("#bt-prov-editar").addEventListener("click", () => { $("#modal").close(); modalProvisao(cad, mes); });
+    },
+    salvar: (d) => api("PUT", `/api/provisoes/${prov.id}/meses`, { mes, valor: exigirValor(d.valor) }),
+  });
+}
+
+async function telaProvisoes() {
+  const [lista, v] = await Promise.all([carregarProvisoes(), api("GET", `/api/mes/${MES_ATUAL}`)]);
+  const doMes = Object.fromEntries(v.provisoes.map((p) => [p.id, p]));
+  const visiveis = lista.filter((p) => estado.mostrarEncerradas || p.ativa || p.inicio > MES_ATUAL);
+  const totalAtivas = lista.filter((p) => p.ativa).reduce((s, p) => s + p.valor, 0);
+  const vigencia = (p) => (p.fim ? `${mesCurto(p.inicio)} → ${mesCurto(p.fim)}` : `desde ${mesCurto(p.inicio)}`);
+  const disponivel = (p) => {
+    const m = doMes[p.id];
+    if (!m) return `<span class="tag">—</span>`;
+    return m.estouro ? `<span class="negativo">estourou ${R(m.estouro)}</span>` : R(m.disponivel);
+  };
+
+  $("#conteudo").innerHTML = `
+    <div class="cabecalho">
+      <h2>Provisões</h2>
+      <span class="tag">valor reservado por mês para gastos variáveis</span>
+      <span class="espaco"></span>
+      <label class="tag"><input type="checkbox" id="mostrar-enc" ${estado.mostrarEncerradas ? "checked" : ""}> mostrar encerradas</label>
+      <button class="primario" id="bt-nova">+ Nova provisão</button>
+    </div>
+    <section class="cartao">
+      <header><h3>${visiveis.length} provisões</h3><span class="soma">Ativas: ${R(totalAtivas)}/mês</span></header>
+      ${visiveis.length ? `<div class="rolagem"><table>
+        <thead><tr><th>Descrição</th><th class="esconde-celular">Categoria</th><th class="esconde-celular">Vigência</th>
+          <th class="num">Valor/mês</th><th class="num">Disponível em ${MESES_CURTOS[Number(MES_ATUAL.slice(5)) - 1]}</th></tr></thead>
+        <tbody>${visiveis.map((p) => `
+          <tr class="clicavel ${p.ativa || p.inicio > MES_ATUAL ? "" : "apagada"}" data-id="${p.id}">
+            <td>${esc(p.descricao)} ${!p.ativa && p.inicio > MES_ATUAL ? `<span class="pill">futura</span>` : ""}
+              ${!p.ativa && p.inicio <= MES_ATUAL ? `<span class="pill">encerrada</span>` : ""}</td>
+            <td class="esconde-celular tag">${esc(p.categoria)}</td>
+            <td class="esconde-celular tag">${vigencia(p)}</td>
+            <td class="num">${R(p.valor)}</td>
+            <td class="num">${disponivel(p)}</td>
+          </tr>`).join("")}
+        </tbody>
+      </table></div>` : `<p class="vazio">Nenhuma provisão ainda. Crie uma para reservar um valor por mês (ex.: Saídas, Mercado).</p>`}
+    </section>`;
+
+  $("#bt-nova").onclick = () => modalProvisao(null);
+  $("#mostrar-enc").onchange = (e) => { estado.mostrarEncerradas = e.target.checked; render(); };
+  $$("tr[data-id]").forEach((tr) => (tr.onclick = () => modalProvisao(lista.find((p) => p.id === Number(tr.dataset.id)))));
 }
 
 // ------------------------------------------------------------ aba Entradas
@@ -763,7 +927,7 @@ async function telaProjecoes() {
         <tr data-linha="entradas"><td>Entradas previstas</td>${d.meses.map((_, i) =>
           `<td><input data-pm="${i}" data-origem="" inputmode="decimal"></td>`).join("")}</tr>
         ${linha("rec", "Recorrências")}${linha("parc", "Parcelas em andamento")}${linha("avulsos", "Lançamentos avulsos")}
-        ${linha("previstas", "Contas previstas")}${linha("cenario", "Do cenário", "linha-cenario")}
+        ${linha("prov", "Provisões")}${linha("previstas", "Contas previstas")}${linha("cenario", "Do cenário", "linha-cenario")}
         ${linha("saldo", "Saldo do mês")}${linha("acumulado", "Acumulado")}${linha("comp", "Comprometimento")}
       </tbody>
     </table></div></section>
@@ -817,6 +981,7 @@ async function telaProjecoes() {
       cel("rec", i, valorOuTraco(cen.base.recorrencias[i]));
       cel("parc", i, valorOuTraco(cen.base.parcelas[i]));
       cel("avulsos", i, valorOuTraco(d.base.avulsos[i]));
+      cel("prov", i, valorOuTraco(d.base.provisoes[i]));
       cel("previstas", i, valorOuTraco(somaMes(d.previstas, i)));
       cel("cenario", i, valorOuTraco(somaMes(cen.contas, i)));
       cel("saldo", i, R(cen.saldo[i]), sinal(cen.saldo[i]));
@@ -1016,6 +1181,7 @@ async function render() {
       mes: () => telaMes(/^\d{4}-\d{2}$/.test(param || "") ? param : MES_ATUAL),
       recorrencias: telaRecorrencias,
       parcelamentos: telaParcelamentos,
+      provisoes: telaProvisoes,
       entradas: () => telaEntradas(ano),
       projecoes: telaProjecoes,
       resumo: () => telaResumo(ano),

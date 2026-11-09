@@ -188,10 +188,23 @@ dialog::backdrop { background: rgba(10, 14, 20, .45); }
 .mes-btn { background: none; border: 0; padding: 0; font: inherit; font-weight: 600; color: inherit; cursor: pointer; text-decoration: underline dotted; }
 .proj th.mes-aberto, .proj td.mes-aberto { background: color-mix(in srgb, var(--primario) 14%, transparent); }
 .marca-ajuste { color: var(--primario); }
-#proj-painel .acoes { text-align: right; white-space: nowrap; }
+#proj-painel .acoes { width: 1%; padding-left: 0; }
+#proj-painel .acoes button { display: block; margin: 2px 0 2px auto; }
+#proj-painel td:first-child { min-width: 90px; }
+#proj-painel td.num { white-space: normal; }
+@media (max-width: 480px) { #proj-painel td { padding: 6px 4px; } #proj-painel .acoes button { padding: 5px 8px; } }
+#proj-painel .selo { white-space: nowrap; }
+#proj-painel td.num small, #proj-painel td.num em { display: block; }
 #proj-painel td { padding: 6px 8px; }
 .suave { color: var(--suave); }
 .selo { color: var(--primario); border: 1px solid var(--primario); border-radius: 8px; padding: 0 6px; margin-left: 4px; }
 fieldset.campo { border: 1px solid var(--borda); border-radius: 8px; padding: 8px 12px; }
 fieldset.campo label { display: block; margin: 4px 0; }
 .check-sem { font-size: 13px; margin-right: 12px; cursor: pointer; }
+
+/* Provisões */
+.pill.prov { background: color-mix(in srgb, var(--primario) 14%, transparent); color: var(--primario); }
+.linha-prov .progresso { display: flex; margin: 4px 0 2px; max-width: 320px; }
+.progresso.estouro .trilho i { background: var(--negativo); }
+.lista-compras { list-style: none; padding: 0; margin: 0 0 12px; }
+.lista-compras li { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; border-bottom: 1px solid var(--linha); }
