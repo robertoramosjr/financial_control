@@ -22,6 +22,8 @@ const estado = {
   mostrarEncerradas: false,
   cenarioSel: null,   // aba Projeções: id do cenário aberto (null = "Sem a compra")
   modoGraf: "pct",    // aba Projeções: eixo do gráfico, "pct" (comprometimento) ou "saldo" (R$)
+  mesAberto: null,    // aba Projeções: índice (0-11) do mês cujo painel de despesas está aberto
+  mostrarSemAjustes: false,   // aba Projeções: gráfico também com a versão de cada cenário sem ajustes
 };
 
 function esc(s) {
@@ -589,17 +591,79 @@ function modalContas({ cenarioId, conta }) {
   });
 }
 
+/** Janela para ajustar o valor de uma recorrência/parcela só na projeção (item: de cen.itens[i]). */
+function modalAjuste({ item, mes, cen }) {
+  const ehBase = cen.id === null;
+  abrirModal({
+    titulo: `${item.descricao} — ${nomeMes(mes)}`,
+    corpo: `<p class="dica">Valor de hoje: ${R(item.original)}</p>
+      <label class="campo"><span>Novo valor (0 cancela)</span>
+        <input name="valor" required inputmode="decimal" value="${numero.format(item.valor)}"></label>
+      <fieldset class="campo"><legend>Vale para</legend>
+        <label><input type="radio" name="alcance" value="mes" checked> só ${nomeMes(mes)}</label>
+        <label><input type="radio" name="alcance" value="diante"> ${nomeMes(mes)} em diante</label>
+        <label><input type="radio" name="alcance" value="ate"> de ${nomeMes(mes)} até
+          <input type="month" name="fim" min="${mes}"></label>
+      </fieldset>
+      <fieldset class="campo"><legend>Aplicar em</legend>
+        <label><input type="radio" name="escopo" value="geral" checked> todos os cenários</label>
+        ${ehBase ? "" : `<label><input type="radio" name="escopo" value="cenario"> só em ${esc(cen.nome)}</label>`}
+      </fieldset>
+      <p class="dica">Não altera Mês, Recorrências nem nenhum lançamento real.</p>`,
+    textoOk: "Aplicar na projeção",
+    salvar: async (f) => {
+      const valor = exigirValor(f.valor, "Novo valor");
+      if (valor < 0) throw new Error("Valor não pode ser negativo");
+      let fim = null;
+      if (f.alcance === "mes") fim = mes;
+      else if (f.alcance === "ate") {
+        if (!f.fim) throw new Error("Informe o mês final");
+        if (f.fim < mes) throw new Error("O mês final não pode ser anterior ao inicial");
+        fim = f.fim;
+      }
+      await api("POST", "/api/projecao/ajustes", {
+        tipo: item.tipo, ref_id: item.id, valor, mes_inicio: mes, mes_fim: fim,
+        escopo: f.escopo, cenario_id: f.escopo === "cenario" ? cen.id : null,
+      });
+    },
+  });
+}
+
+/** Desfaz o ajuste de uma despesa num mês; se ele cobre vários meses, pergunta o alcance. */
+async function desfazerAjuste({ item, mes }) {
+  const a = item.ajuste;
+  if (a.mes_inicio === a.mes_fim) {
+    try { await api("DELETE", `/api/projecao/ajustes/${a.id}`); render(); }
+    catch (e) { aviso(e.message, true); }
+    return;
+  }
+  abrirModal({
+    titulo: `Desfazer ajuste — ${item.descricao}`,
+    corpo: `<p>Este ajuste vale de ${nomeMes(a.mes_inicio)} ${a.mes_fim ? `até ${nomeMes(a.mes_fim)}` : "em diante"}.
+      Desfazer só ${nomeMes(mes)} ou o ajuste inteiro?</p>`,
+    textoOk: `Só ${nomeMes(mes)}`,
+    salvar: () => api("POST", `/api/projecao/ajustes/${a.id}/desfazer-mes`, { mes }),
+    apagar: async () => { await api("DELETE", `/api/projecao/ajustes/${a.id}`); return true; },
+    aoAbrir: () => { $("#modal-apagar").textContent = "O ajuste inteiro"; },
+  });
+}
+
 const TRACEJADOS = ["6 4", "2 3", "10 3 2 3"];   // cenários além das 6 cores repetem a cor com tracejado
 const corCen = (k) => `var(--cen-${(k % 6) + 1})`;
 const tracejadoCen = (k) => (k < 6 ? "" : ` stroke-dasharray="${TRACEJADOS[(Math.floor(k / 6) - 1) % TRACEJADOS.length]}"`);
 
 /** Linhas sobrepostas dos cenários, mês a mês. modo: "pct" = comprometimento (%), "saldo" = saldo do mês (R$). */
-function graficoProjecao(d, modo, selecionado) {
+function graficoProjecao(d, modo, selecionado, semAjustes = false) {
   const W = 900, H = 300, m = { t: 16, r: 12, b: 28, l: 56 };
   const N = d.meses.length;
-  const valor = (c, i) => (modo === "pct" ? (c.comprometimento[i] == null ? null : c.comprometimento[i] * 100) : c.saldo[i]);
+  const dePct = (x) => (x == null ? null : x * 100);
+  const valor = (c, i) => (modo === "pct" ? dePct(c.comprometimento[i]) : c.saldo[i]);
+  const valorSem = (c, i) => (modo === "pct" ? dePct(c.sem_ajustes.comprometimento[i]) : c.sem_ajustes.saldo[i]);
+  // só vale desenhar a versão sem ajustes de um cenário se ela difere da ajustada em algum mês
+  const comSem = semAjustes ? d.cenarios.filter((c) => d.meses.some((_, i) => valor(c, i) !== valorSem(c, i))) : [];
   const ref = modo === "pct" ? 100 : 0;
-  const vals = d.cenarios.flatMap((c) => d.meses.map((_, i) => valor(c, i))).filter((v) => v != null);
+  const vals = [...d.cenarios.flatMap((c) => d.meses.map((_, i) => valor(c, i))),
+    ...comSem.flatMap((c) => d.meses.map((_, i) => valorSem(c, i)))].filter((v) => v != null);
   let max = Math.max(ref, ...vals), min = Math.min(0, ...vals);
   const passo = Math.pow(10, Math.floor(Math.log10(Math.max(max - min, 1)))) / 2 || 1;
   max = Math.ceil(max / passo) * passo; min = Math.floor(min / passo) * passo;
@@ -613,20 +677,39 @@ function graficoProjecao(d, modo, selecionado) {
       <text x="${m.l - 6}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="var(--suave)">${rotulo(v)}</text>`;
   }
   const meses = d.meses.map((mes, i) => `<text x="${x(i)}" y="${H - 8}" text-anchor="middle" font-size="12" fill="var(--suave)">${MESES_CURTOS[Number(mes.slice(5)) - 1]}</text>`).join("");
-  const series = d.cenarios.map((c, k) => {
-    const sel = c.id === selecionado;
+  const caminho = (c, f) => {
     let tracado = "", caneta = false;
-    const pontos = d.meses.map((mes, i) => {
-      const v = valor(c, i);
-      if (v == null) { caneta = false; return ""; }
+    d.meses.forEach((_, i) => {
+      const v = f(c, i);
+      if (v == null) { caneta = false; return; }
       tracado += `${caneta ? "L" : "M"}${x(i)},${y(v)} `;
       caneta = true;
+    });
+    return tracado.trim();
+  };
+  const series = d.cenarios.map((c, k) => {
+    const sel = c.id === selecionado;
+    const pontos = d.meses.map((mes, i) => {
+      const v = valor(c, i);
+      if (v == null) return "";
       const texto = modo === "pct" ? `${Math.round(v)}%` : R(v);
-      return `<circle data-cen="${c.id ?? ""}" cx="${x(i)}" cy="${y(v)}" r="${sel ? 4 : 3}" fill="var(--cartao)" stroke="${corCen(k)}" stroke-width="2"><title>${nomeMes(mes)} · ${esc(c.nome)} · ${texto}</title></circle>`;
+      const rotulo = semAjustes ? " · com ajustes" : "";
+      return `<circle data-cen="${c.id ?? ""}" cx="${x(i)}" cy="${y(v)}" r="${sel ? 4 : 3}" fill="var(--cartao)" stroke="${corCen(k)}" stroke-width="2"><title>${nomeMes(mes)} · ${esc(c.nome)}${rotulo} · ${texto}</title></circle>`;
     }).join("");
-    return `<path data-cen="${c.id ?? ""}" data-sel="${sel ? 1 : 0}" d="${tracado.trim()}" fill="none" stroke="${corCen(k)}" stroke-width="${sel ? 3.5 : 2}"${tracejadoCen(k)} stroke-linejoin="round"/>${pontos}`;
+    let sem = "";
+    if (comSem.includes(c)) {
+      const pts = d.meses.map((mes, i) => {
+        const v = valorSem(c, i);
+        if (v == null) return "";
+        const texto = modo === "pct" ? `${Math.round(v)}%` : R(v);
+        return `<circle class="pt-sem" data-cen="${c.id ?? ""}" cx="${x(i)}" cy="${y(v)}" r="2.5" fill="${corCen(k)}" opacity=".7"><title>${nomeMes(mes)} · ${esc(c.nome)} · sem ajustes · ${texto}</title></circle>`;
+      }).join("");
+      sem = `<path class="sem-ajustes" data-cen="${c.id ?? ""}" d="${caminho(c, valorSem)}" fill="none" stroke="${corCen(k)}" stroke-width="1.5" stroke-dasharray="2 4" stroke-linecap="round" opacity=".8"/>${pts}`;
+    }
+    return `${sem}<path data-cen="${c.id ?? ""}" data-sel="${sel ? 1 : 0}" d="${caminho(c, valor)}" fill="none" stroke="${corCen(k)}" stroke-width="${sel ? 3.5 : 2}"${tracejadoCen(k)} stroke-linejoin="round"/>${pontos}`;
   }).join("");
-  const legenda = d.cenarios.map((c, k) => `<span><i style="background:${corCen(k)}${k < 6 ? "" : ";opacity:.6"}"></i>${esc(c.nome)}</span>`).join("");
+  const legenda = d.cenarios.map((c, k) => `<span><i style="background:${corCen(k)}${k < 6 ? "" : ";opacity:.6"}"></i>${esc(c.nome)}</span>`).join("")
+    + (semAjustes ? `<span><svg width="22" height="8" aria-hidden="true"><line x1="1" x2="21" y1="4" y2="4" stroke="var(--suave)" stroke-width="2" stroke-dasharray="2 4" stroke-linecap="round"/></svg> pontilhado = sem ajustes${comSem.length ? "" : " (nenhum ajuste muda os cenários)"}</span>` : "");
   return `<div class="grafico"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${modo === "pct" ? "Comprometimento da renda" : "Saldo do mês"} por mês, um traço por cenário">
     ${grade}<line class="ref" x1="${m.l}" x2="${W - m.r}" y1="${y(ref)}" y2="${y(ref)}" stroke="var(--ref)" stroke-width="1.5" stroke-dasharray="5 4"/>
     ${meses}${series}</svg></div><div class="legenda">${legenda}</div>`;
@@ -656,10 +739,11 @@ async function telaProjecoes() {
       ${ehBase ? "" : `<button id="bt-ren-cen">Renomear</button><button id="bt-dup-cen">Duplicar</button>
         <button class="perigo" id="bt-apg-cen">Apagar</button>`}
     </div>
-    <p class="dica">Digite as entradas previstas de cada mês (em cinza itálico: valor da aba Entradas). Contas previstas valem para todos os cenários; as do cenário, só para ele.</p>
+    <p class="dica">Digite as entradas previstas de cada mês (em cinza itálico: valor da aba Entradas). Contas previstas valem para todos os cenários; as do cenário, só para ele. Clique no nome de um mês para ver as despesas dele e ajustar (cortar, reduzir ou pausar) só na projeção.</p>
     <p id="pior-mes" class="destaque"></p>
     <section class="cartao"><div class="rolagem"><table class="proj">
-      <thead><tr><th></th>${d.meses.map((m) => `<th class="num">${mesCurto(m)}</th>`).join("")}</tr></thead>
+      <thead><tr><th></th>${d.meses.map((m, i) => `<th class="num"><button type="button" class="mes-btn" data-mes-i="${i}"
+          title="Ver e ajustar as despesas deste mês">${mesCurto(m)}<span class="marca-ajuste"></span></button></th>`).join("")}</tr></thead>
       <tbody>
         <tr data-linha="entradas"><td>Entradas previstas</td>${d.meses.map((_, i) =>
           `<td><input data-pm="${i}" data-origem="" inputmode="decimal"></td>`).join("")}</tr>
@@ -668,8 +752,10 @@ async function telaProjecoes() {
         ${linha("saldo", "Saldo do mês")}${linha("acumulado", "Acumulado")}${linha("comp", "Comprometimento")}
       </tbody>
     </table></div></section>
+    <div id="proj-painel"></div>
     <section class="cartao">
-      <header><h3 id="titulo-graf"></h3><span class="soma"><button id="bt-modo-graf"></button></span></header>
+      <header><h3 id="titulo-graf"></h3><span class="soma"><label class="check-sem"><input type="checkbox" id="ck-sem-ajustes"> Mostrar sem ajustes</label>
+        <button id="bt-modo-graf"></button></span></header>
       <div id="proj-grafico"></div>
     </section>
     <section class="cartao" id="sec-previstas">
@@ -681,17 +767,40 @@ async function telaProjecoes() {
       ${tabelaContas(cen.contas)}
     </section>`}`;
 
+  // Painel "Despesas de [mês]": só botões, nunca os <input> da tabela.
+  const pintarPainel = () => {
+    const i = estado.mesAberto, el = $("#proj-painel");
+    if (i == null) { el.innerHTML = ""; return; }
+    const mes = d.meses[i], itens = cen.itens[i];
+    const linhas = itens.map((x, k) => {
+      const nome = esc(x.descricao) + (x.parcela ? ` · parcela ${x.parcela}/${x.n_parcelas}` : "");
+      const a = x.ajuste;
+      const valor = !a ? R(x.valor)
+        : x.valor === 0 ? `<s>${R(x.original)}</s> <em>cancelado na projeção</em>`
+        : `${R(x.valor)} <small class="suave">(era ${R(x.original)})</small>`;
+      const selo = a ? ` <small class="selo">${a.escopo === "geral" ? "geral" : "só neste cenário"}</small>` : "";
+      return `<tr><td>${nome}${selo}</td><td class="num">${valor}</td><td class="acoes">
+        <button type="button" data-editar="${k}">editar</button>
+        ${a ? `<button type="button" data-desfazer="${k}">desfazer</button>` : ""}</td></tr>`;
+    }).join("");
+    el.innerHTML = `<section class="cartao"><header><h3>Despesas de ${nomeMes(mes)}</h3></header>
+      ${itens.length ? `<div class="rolagem"><table><tbody>${linhas}</tbody></table></div>`
+        : `<p class="vazio">Nenhuma recorrência ou parcela neste mês.</p>`}</section>`;
+    $$("[data-editar]", el).forEach((b) => (b.onclick = () => modalAjuste({ item: itens[Number(b.dataset.editar)], mes, cen })));
+    $$("[data-desfazer]", el).forEach((b) => (b.onclick = () => desfazerAjuste({ item: itens[Number(b.dataset.desfazer)], mes })));
+  };
+
   // Atualiza só os números; nunca recria os <input> (recriar derrubaria o foco da célula clicada).
   const pintar = () => {
     cen = d.cenarios.find((c) => c.id === cen.id) || d.cenarios[0];
     const cel = (chave, i, texto, cls = "") => {
       const td = $(`tr[data-linha="${chave}"] td[data-i="${i}"]`);
       td.textContent = texto;
-      td.className = `num ${cls}`;
+      td.className = `num ${cls} ${i === estado.mesAberto ? "mes-aberto" : ""}`;
     };
     d.meses.forEach((_, i) => {
-      cel("rec", i, valorOuTraco(d.base.recorrencias[i]));
-      cel("parc", i, valorOuTraco(d.base.parcelas[i]));
+      cel("rec", i, valorOuTraco(cen.base.recorrencias[i]));
+      cel("parc", i, valorOuTraco(cen.base.parcelas[i]));
       cel("avulsos", i, valorOuTraco(d.base.avulsos[i]));
       cel("previstas", i, valorOuTraco(somaMes(d.previstas, i)));
       cel("cenario", i, valorOuTraco(somaMes(cen.contas, i)));
@@ -703,15 +812,27 @@ async function telaProjecoes() {
       inp.title = { digitada: "Digitado aqui", real: "Valor da aba Entradas", vazia: "Sem entrada prevista" }[e.origem];
       if (inp !== document.activeElement) inp.value = e.origem === "vazia" ? "" : numero.format(e.valor);
     });
+    $$("th .mes-btn").forEach((b, i) => {
+      b.parentElement.classList.toggle("mes-aberto", i === estado.mesAberto);
+      $(".marca-ajuste", b).textContent = cen.itens[i].some((x) => x.ajuste) ? " •" : "";
+    });
+    pintarPainel();
     const emPct = estado.modoGraf === "pct";
     $("#titulo-graf").textContent = emPct ? "Comprometimento da renda" : "Saldo do mês";
     $("#bt-modo-graf").textContent = emPct ? "Ver saldo (R$)" : "Ver comprometimento (%)";
-    $("#proj-grafico").innerHTML = graficoProjecao(d, estado.modoGraf, cen.id);
+    $("#ck-sem-ajustes").checked = estado.mostrarSemAjustes;
+    $("#proj-grafico").innerHTML = graficoProjecao(d, estado.modoGraf, cen.id, estado.mostrarSemAjustes);
     const pm = cen.pior_mes;
     $("#pior-mes").innerHTML = `Pior mês deste cenário: <strong>${nomeMes(pm.mes)}</strong> · saldo
       <strong class="${sinal(pm.saldo)}">${R(pm.saldo)}</strong>`;
   };
   pintar();
+  $$("th .mes-btn").forEach((b) => (b.onclick = () => {
+    const i = Number(b.dataset.mesI);
+    estado.mesAberto = estado.mesAberto === i ? null : i;
+    pintar();
+  }));
+  $("#ck-sem-ajustes").onchange = (e) => { estado.mostrarSemAjustes = e.target.checked; pintar(); };
   $("#bt-modo-graf").onclick = () => { estado.modoGraf = estado.modoGraf === "pct" ? "saldo" : "pct"; pintar(); };
 
   $$("input[data-pm]").forEach((inp) => {
@@ -748,7 +869,7 @@ async function telaProjecoes() {
       catch (e) { aviso(e.message, true); }
     };
     $("#bt-apg-cen").onclick = async () => {
-      if (!confirm(`Apagar o cenário "${cen.nome}" e as contas dele?`)) return;
+      if (!confirm(`Apagar o cenário "${cen.nome}", as contas e os ajustes dele?`)) return;
       try { await api("DELETE", `/api/projecao/cenarios/${cen.id}`); estado.cenarioSel = null; render(); }
       catch (e) { aviso(e.message, true); }
     };

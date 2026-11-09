@@ -185,3 +185,13 @@ dialog::backdrop { background: rgba(10, 14, 20, .45); }
 .proj tr.linha-cenario td { background: color-mix(in srgb, var(--primario) 10%, transparent); }
 .linha-conta { display: grid; grid-template-columns: 1fr 70px 1fr auto; gap: 6px; margin-bottom: 8px; }
 .linha-conta input[name="descricao"] { grid-column: 1 / -1; }
+.mes-btn { background: none; border: 0; padding: 0; font: inherit; font-weight: 600; color: inherit; cursor: pointer; text-decoration: underline dotted; }
+.proj th.mes-aberto, .proj td.mes-aberto { background: color-mix(in srgb, var(--primario) 14%, transparent); }
+.marca-ajuste { color: var(--primario); }
+#proj-painel .acoes { text-align: right; white-space: nowrap; }
+#proj-painel td { padding: 6px 8px; }
+.suave { color: var(--suave); }
+.selo { color: var(--primario); border: 1px solid var(--primario); border-radius: 8px; padding: 0 6px; margin-left: 4px; }
+fieldset.campo { border: 1px solid var(--borda); border-radius: 8px; padding: 8px 12px; }
+fieldset.campo label { display: block; margin: 4px 0; }
+.check-sem { font-size: 13px; margin-right: 12px; cursor: pointer; }
