@@ -80,6 +80,23 @@ CREATE TABLE IF NOT EXISTS lancamentos (
     pago INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS ix_lanc_mes ON lancamentos(mes);
+-- Provisões: valor reservado por mês para despesas variáveis; compras com provisao_id consomem a reserva.
+-- (A coluna lancamentos.provisao_id é adicionada em iniciar_banco, para bancos antigos também.)
+CREATE TABLE IF NOT EXISTS provisoes (
+    id INTEGER PRIMARY KEY,
+    descricao TEXT NOT NULL,
+    categoria_id INTEGER NOT NULL REFERENCES categorias(id),
+    valor_centavos INTEGER NOT NULL CHECK (valor_centavos >= 0),
+    inicio TEXT NOT NULL,
+    fim TEXT
+);
+-- Valor provisionado de um mês específico (vence o valor padrão e a vigência).
+CREATE TABLE IF NOT EXISTS provisao_meses (
+    provisao_id INTEGER NOT NULL REFERENCES provisoes(id) ON DELETE CASCADE,
+    mes TEXT NOT NULL,
+    valor_centavos INTEGER NOT NULL CHECK (valor_centavos >= 0),
+    PRIMARY KEY (provisao_id, mes)
+);
 -- "Pago" de recorrências e parcelas fica preso ao item (tipo + id) e ao mês,
 -- então cadastrar algo novo nunca desloca as marcações dos outros.
 CREATE TABLE IF NOT EXISTS pagamentos (
@@ -175,6 +192,8 @@ def iniciar_banco():
     novo = not DB_PATH.exists()
     with conectar() as con:
         con.executescript(SCHEMA)
+        if "provisao_id" not in [r["name"] for r in con.execute("PRAGMA table_info(lancamentos)")]:
+            con.execute("ALTER TABLE lancamentos ADD COLUMN provisao_id INTEGER REFERENCES provisoes(id)")
         if novo:
             con.executemany("INSERT INTO categorias (nome, ordem) VALUES (?, ?)",
                             [(n, i) for i, n in enumerate(CATEGORIAS_PADRAO)])
@@ -390,14 +409,43 @@ def parcelas_do_mes(con, mes):
 
 def avulsos_do_mes(con, mes):
     rows = con.execute("""
-        SELECT l.*, c.nome AS categoria FROM lancamentos l
+        SELECT l.*, c.nome AS categoria, pr.descricao AS provisao FROM lancamentos l
         JOIN categorias c ON c.id = l.categoria_id
+        LEFT JOIN provisoes pr ON pr.id = l.provisao_id
         WHERE l.mes = ? ORDER BY l.data, l.id""", (mes,)).fetchall()
     return [{
         "tipo": "avulso", "id": r["id"], "descricao": r["descricao"], "data": r["data"],
         "valor": reais(r["valor_centavos"]), "categoria_id": r["categoria_id"],
         "categoria": r["categoria"], "pago": bool(r["pago"]),
+        "provisao_id": r["provisao_id"], "provisao": r["provisao"],
     } for r in rows]
+
+
+def provisoes_do_mes(con, mes, hoje):
+    """Provisões vigentes no mês (ou com valor do mês nele). Contam só o disponível, e só em mês não terminado:
+    as compras ligadas já entram como avulsos."""
+    rows = con.execute("""
+        SELECT pr.*, c.nome AS categoria, pm.valor_centavos AS valor_mes,
+               (SELECT COALESCE(SUM(l.valor_centavos), 0) FROM lancamentos l
+                WHERE l.provisao_id = pr.id AND l.mes = ?) AS gasto
+        FROM provisoes pr
+        JOIN categorias c ON c.id = pr.categoria_id
+        LEFT JOIN provisao_meses pm ON pm.provisao_id = pr.id AND pm.mes = ?
+        WHERE pm.mes IS NOT NULL OR (pr.inicio <= ? AND (pr.fim IS NULL OR pr.fim >= ?))
+        ORDER BY pr.descricao COLLATE NOCASE, pr.id""", (mes, mes, mes, mes)).fetchall()
+    out = []
+    for r in rows:
+        prov = r["valor_mes"] if r["valor_mes"] is not None else r["valor_centavos"]
+        gasto, fechado = r["gasto"], mes < hoje
+        disponivel = max(prov - gasto, 0)
+        out.append({
+            "tipo": "prov", "id": r["id"], "descricao": r["descricao"],
+            "categoria_id": r["categoria_id"], "categoria": r["categoria"],
+            "provisionado": reais(prov), "valor_do_mes": r["valor_mes"] is not None,
+            "gasto": reais(gasto), "disponivel": reais(disponivel), "estouro": reais(max(gasto - prov, 0)),
+            "fechado": fechado, "valor": 0.0 if fechado else reais(disponivel),
+        })
+    return out
 
 
 def entradas_do_mes(con, mes):
@@ -409,20 +457,22 @@ def total(itens):
     return round(sum(i["valor"] for i in itens), 2)
 
 
-def visao_mes(con, mes):
+def visao_mes(con, mes, hoje=None):
+    hoje = hoje or date.today().isoformat()[:7]
     av, rec, parc = avulsos_do_mes(con, mes), recorrencias_do_mes(con, mes), parcelas_do_mes(con, mes)
+    prov = provisoes_do_mes(con, mes, hoje)
     todos = av + rec + parc
     por_cat = {}
-    for i in todos:
+    for i in todos + [p for p in prov if p["valor"]]:
         por_cat[i["categoria"]] = round(por_cat.get(i["categoria"], 0) + i["valor"], 2)
-    despesas = total(todos)
+    despesas = total(todos + prov)
     entradas = entradas_do_mes(con, mes)
     return {
-        "mes": mes, "avulsos": av, "recorrencias": rec, "parcelas": parc,
+        "mes": mes, "avulsos": av, "provisoes": prov, "recorrencias": rec, "parcelas": parc,
         "totais": {
-            "avulsos": total(av), "recorrencias": total(rec), "parcelas": total(parc),
+            "avulsos": total(av), "provisoes": total(prov), "recorrencias": total(rec), "parcelas": total(parc),
             "despesas": despesas, "entradas": entradas, "saldo": round(entradas - despesas, 2),
-            "a_pagar": round(sum(i["valor"] for i in todos if not i["pago"]), 2),
+            "a_pagar": round(sum(i["valor"] for i in todos if not i["pago"]) + total(prov), 2),
         },
         "por_categoria": sorted(por_cat.items(), key=lambda kv: -kv[1]),
     }
@@ -649,7 +699,7 @@ def ajuste_vigente(ajustes, tipo, ref_id, mes, cenario_id):
 
 def projecao(con, inicio, n_meses=12):
     meses = [somar_meses(inicio, i) for i in range(n_meses)]
-    vms = [visao_mes(con, m) for m in meses]
+    vms = [visao_mes(con, m, hoje=inicio) for m in meses]
     visoes = [v["totais"] for v in vms]
     ajustes = con.execute("SELECT * FROM projecao_ajustes ORDER BY id").fetchall()
     digitadas = {r["mes"]: r["valor_centavos"] for r in con.execute("SELECT mes, valor_centavos FROM projecao_entradas")}
@@ -662,7 +712,7 @@ def projecao(con, inicio, n_meses=12):
         else:
             entradas.append({"valor": 0.0, "origem": "vazia"})
     base = {"recorrencias": [t["recorrencias"] for t in visoes], "parcelas": [t["parcelas"] for t in visoes],
-            "avulsos": [t["avulsos"] for t in visoes]}
+            "avulsos": [t["avulsos"] for t in visoes], "provisoes": [t["provisoes"] for t in visoes]}
 
     todas = con.execute("SELECT * FROM projecao_contas ORDER BY id").fetchall()
     previstas = [_conta_projetada(r, meses) for r in todas if r["cenario_id"] is None]
@@ -695,7 +745,7 @@ def projecao(con, inicio, n_meses=12):
         extras = [sum(c["valores"][i] for c in previstas + contas) for i in range(n_meses)]
 
         def serie(rec, parc):
-            despesas = [round(rec[i] + parc[i] + base["avulsos"][i] + extras[i], 2) for i in range(n_meses)]
+            despesas = [round(rec[i] + parc[i] + base["avulsos"][i] + base["provisoes"][i] + extras[i], 2) for i in range(n_meses)]
             saldo = [round(entradas[i]["valor"] - despesas[i], 2) for i in range(n_meses)]
             comp = [despesas[i] / entradas[i]["valor"] if entradas[i]["valor"] else None for i in range(n_meses)]
             return despesas, saldo, comp
