@@ -3,3 +3,6 @@
 backups/
 *.zip
 __pycache__/
+
+# Mockups do brainstorming
+.superpowers/
