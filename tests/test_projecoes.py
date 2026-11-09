@@ -358,5 +358,126 @@ class TestAjustes(BancoTemporario):
             self.assertEqual(c["sem_ajustes"]["despesas"], [3000.0] * 12)
 
 
+class TestAjustesApi(BancoTemporario):
+    def setUp(self):
+        super().setUp()
+        with app.conectar() as con:
+            self.rec = rec_id(con)
+
+    def corpo(self, **extra):
+        return {"tipo": "rec", "ref_id": self.rec, "valor": "2000", "mes_inicio": INICIO, "mes_fim": None,
+                "escopo": "geral", "cenario_id": None, **extra}
+
+    def cenario(self, nome="A"):
+        return chamar("POST", "/api/projecao/cenarios", {"nome": nome})[1]["id"]
+
+    def criar(self, **extra):
+        status, r = chamar("POST", "/api/projecao/ajustes", self.corpo(**extra))
+        self.assertEqual(status, 200, r)
+        return r["id"]
+
+    def valores(self, indice=0):
+        with app.conectar() as con:
+            return app.projecao(con, INICIO)["cenarios"][indice]["despesas"]
+
+    def test_cria_ajuste_geral_e_aparece_na_projecao(self):
+        self.criar(mes_fim=INICIO)
+        _, p = chamar("GET", "/api/projecao")
+        self.assertEqual(p["cenarios"][0]["itens"][0][0]["valor"], 2000.0)
+
+    def test_cria_ajuste_de_cenario(self):
+        cid = self.cenario()
+        self.criar(escopo="cenario", cenario_id=cid)
+        self.assertEqual(self.valores(0)[0], 3000.0)
+        self.assertEqual(self.valores(1)[0], 2000.0)
+
+    def test_ajuste_invalido_e_recusado_sem_erro_500(self):
+        cid = self.cenario()
+        ruins = [{"valor": "-1"}, {"valor": "inf"}, {"valor": "abc"}, {"valor": float("inf")}, {"valor": None},
+                 {"mes_inicio": "2027-01", "mes_fim": "2026-12"}, {"mes_inicio": "2026-13"},
+                 {"tipo": "avulso"}, {"ref_id": 999}, {"escopo": "cenario"},
+                 {"escopo": "cenario", "cenario_id": 999}, {"escopo": "outro"}]
+        for ruim in ruins:
+            status, _ = chamar("POST", "/api/projecao/ajustes", self.corpo(**ruim))
+            self.assertEqual(status, 400, ruim)
+        self.assertEqual(contagem("projecao_ajustes"), 0)
+        self.assertEqual(chamar("POST", "/api/projecao/ajustes", self.corpo(escopo="cenario", cenario_id=cid))[0], 200)
+
+    def test_valor_zero_cancela(self):
+        self.criar(valor="0", mes_fim=INICIO)
+        self.assertEqual(self.valores()[:2], [0.0, 3000.0])
+
+    def test_desfazer_mes_no_meio_divide_o_ajuste(self):
+        aid = self.criar(mes_fim="2027-03")
+        self.assertEqual(chamar("POST", f"/api/projecao/ajustes/{aid}/desfazer-mes", {"mes": "2027-01"})[0], 200)
+        self.assertEqual(self.valores()[:6], [2000.0, 2000.0, 3000.0, 2000.0, 2000.0, 3000.0])
+
+    def test_desfazer_mes_na_ponta_encurta(self):
+        aid = self.criar(mes_fim="2026-12")
+        chamar("POST", f"/api/projecao/ajustes/{aid}/desfazer-mes", {"mes": INICIO})
+        self.assertEqual(self.valores()[:3], [3000.0, 2000.0, 3000.0])
+        self.assertEqual(contagem("projecao_ajustes"), 1)
+        self.assertEqual(chamar("DELETE", f"/api/projecao/ajustes/{aid}")[0], 200)
+        aid2 = self.criar(mes_fim="2027-02")
+        chamar("POST", f"/api/projecao/ajustes/{aid2}/desfazer-mes", {"mes": "2027-02"})
+        self.assertEqual(self.valores()[:4], [2000.0, 2000.0, 2000.0, 3000.0])
+
+    def test_desfazer_mes_unico_apaga(self):
+        aid = self.criar(mes_fim=INICIO)
+        chamar("POST", f"/api/projecao/ajustes/{aid}/desfazer-mes", {"mes": INICIO})
+        self.assertEqual(contagem("projecao_ajustes"), 0)
+
+    def test_desfazer_mes_de_ajuste_sem_fim(self):
+        aid = self.criar()
+        chamar("POST", f"/api/projecao/ajustes/{aid}/desfazer-mes", {"mes": "2027-01"})
+        v = self.valores()
+        self.assertEqual((v[0], v[1], v[2], v[3], v[11]), (2000.0, 2000.0, 3000.0, 2000.0, 2000.0))
+
+    def test_desfazer_mes_fora_do_intervalo_ou_inexistente_400(self):
+        aid = self.criar(mes_fim="2026-12")
+        self.assertEqual(chamar("POST", f"/api/projecao/ajustes/{aid}/desfazer-mes", {"mes": "2027-05"})[0], 400)
+        self.assertEqual(chamar("POST", f"/api/projecao/ajustes/{aid}/desfazer-mes", {"mes": "x"})[0], 400)
+        self.assertEqual(chamar("POST", "/api/projecao/ajustes/999/desfazer-mes", {"mes": INICIO})[0], 400)
+        self.assertEqual(contagem("projecao_ajustes"), 1)
+
+    def test_apagar_ajuste_inteiro(self):
+        aid = self.criar()
+        self.assertEqual(chamar("DELETE", f"/api/projecao/ajustes/{aid}")[0], 200)
+        self.assertEqual(contagem("projecao_ajustes"), 0)
+
+    def test_apagar_recorrencia_real_apaga_ajustes_dela(self):
+        self.criar()
+        self.assertEqual(chamar("DELETE", f"/api/recorrencias/{self.rec}")[0], 200)
+        self.assertEqual(contagem("projecao_ajustes"), 0)
+        self.assertEqual(chamar("GET", "/api/projecao")[0], 200)
+
+    def test_apagar_parcelamento_real_apaga_ajustes_dele(self):
+        with app.conectar() as con:
+            con.execute("""INSERT INTO parcelamentos (descricao, primeira_parcela, valor_parcela_centavos, n_parcelas, categoria_id)
+                           VALUES ('Sofá', '2026-11-10', 10000, 3, 1)""")
+            pid = con.execute("SELECT MAX(id) FROM parcelamentos").fetchone()[0]
+        self.criar(tipo="parc", ref_id=pid)
+        self.criar()
+        self.assertEqual(chamar("DELETE", f"/api/parcelamentos/{pid}")[0], 200)
+        self.assertEqual(contagem("projecao_ajustes"), 1)
+
+    def test_apagar_cenario_apaga_so_ajustes_dele(self):
+        cid = self.cenario()
+        self.criar(escopo="cenario", cenario_id=cid)
+        self.criar()
+        self.assertEqual(chamar("DELETE", f"/api/projecao/cenarios/{cid}")[0], 200)
+        self.assertEqual(contagem("projecao_ajustes"), 1)
+
+    def test_duplicar_cenario_copia_ajustes_do_cenario_mas_nao_os_gerais(self):
+        cid = self.cenario()
+        self.criar(escopo="cenario", cenario_id=cid)
+        self.criar()
+        status, r = chamar("POST", f"/api/projecao/cenarios/{cid}/duplicar")
+        self.assertEqual(status, 200)
+        with app.conectar() as con:
+            n = lambda c: con.execute("SELECT COUNT(*) FROM projecao_ajustes WHERE cenario_id IS ?", (c,)).fetchone()[0]
+            self.assertEqual((n(cid), n(r["id"]), n(None)), (1, 1, 1))
+
+
 if __name__ == "__main__":
     unittest.main()

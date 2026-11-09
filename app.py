@@ -753,6 +753,9 @@ def duplicar_cenario(con, cid, _d):
     con.execute("""INSERT INTO projecao_contas (cenario_id, descricao, total_centavos, n_parcelas, primeira_parcela)
                    SELECT ?, descricao, total_centavos, n_parcelas, primeira_parcela
                    FROM projecao_contas WHERE cenario_id = ? ORDER BY id""", (novo, cid))
+    con.execute("""INSERT INTO projecao_ajustes (cenario_id, tipo, ref_id, mes_inicio, mes_fim, valor_centavos)
+                   SELECT ?, tipo, ref_id, mes_inicio, mes_fim, valor_centavos
+                   FROM projecao_ajustes WHERE cenario_id = ? ORDER BY id""", (novo, cid))
     return novo
 
 
@@ -792,6 +795,57 @@ def salvar_conta_projecao(con, d, conta_id):
     return conta_id
 
 
+def salvar_ajuste(con, d):
+    tipo = d.get("tipo")
+    tabela = {"rec": "recorrencias", "parc": "parcelamentos"}.get(tipo)
+    if tabela is None:
+        raise ErroEntrada("Tipo inválido: use rec ou parc")
+    ref_id = d.get("ref_id")
+    if not isinstance(ref_id, int) or isinstance(ref_id, bool) or \
+            not con.execute(f"SELECT 1 FROM {tabela} WHERE id = ?", (ref_id,)).fetchone():
+        raise ErroEntrada("Despesa não encontrada")
+    valor = centavos(exigir(d, "valor"))
+    if valor < 0:
+        raise ErroEntrada("Valor não pode ser negativo")
+    inicio, fim = exigir_mes(d, "mes_inicio"), exigir_mes(d, "mes_fim", opcional=True)
+    if fim is not None and fim < inicio:
+        raise ErroEntrada("O mês final não pode ser anterior ao inicial")
+    escopo = d.get("escopo")
+    if escopo == "geral":
+        cid = None
+    elif escopo == "cenario":
+        cid = d.get("cenario_id")
+        if not isinstance(cid, int) or isinstance(cid, bool) or \
+                not con.execute("SELECT 1 FROM cenarios WHERE id = ?", (cid,)).fetchone():
+            raise ErroEntrada("Cenário não encontrado")
+    else:
+        raise ErroEntrada("Escopo inválido: use geral ou cenario")
+    return con.execute("""INSERT INTO projecao_ajustes (cenario_id, tipo, ref_id, mes_inicio, mes_fim, valor_centavos)
+                          VALUES (?, ?, ?, ?, ?, ?)""", (cid, tipo, ref_id, inicio, fim, valor)).lastrowid
+
+
+def desfazer_mes_ajuste(con, ajuste_id, d):
+    """Tira um mês do ajuste: apaga, encurta uma ponta ou divide em dois."""
+    mes = exigir_mes(d, "mes")
+    a = con.execute("SELECT * FROM projecao_ajustes WHERE id = ?", (ajuste_id,)).fetchone()
+    if not a:
+        raise ErroEntrada("Ajuste não encontrado")
+    ini, fim = a["mes_inicio"], a["mes_fim"]
+    if mes < ini or (fim is not None and mes > fim):
+        raise ErroEntrada("Esse mês não está no ajuste")
+    if mes == ini and mes == fim:
+        con.execute("DELETE FROM projecao_ajustes WHERE id = ?", (ajuste_id,))
+    elif mes == ini:
+        con.execute("UPDATE projecao_ajustes SET mes_inicio = ? WHERE id = ?", (somar_meses(mes, 1), ajuste_id))
+    elif mes == fim:
+        con.execute("UPDATE projecao_ajustes SET mes_fim = ? WHERE id = ?", (somar_meses(mes, -1), ajuste_id))
+    else:
+        con.execute("UPDATE projecao_ajustes SET mes_fim = ? WHERE id = ?", (somar_meses(mes, -1), ajuste_id))
+        con.execute("""INSERT INTO projecao_ajustes (cenario_id, tipo, ref_id, mes_inicio, mes_fim, valor_centavos)
+                       VALUES (?, ?, ?, ?, ?, ?)""",
+                    (a["cenario_id"], a["tipo"], a["ref_id"], somar_meses(mes, 1), fim, a["valor_centavos"]))
+
+
 # ------------------------------------------------------------------ HTTP
 
 def apagar(tabela, tipo_pag=None):
@@ -799,6 +853,7 @@ def apagar(tabela, tipo_pag=None):
         con.execute(f"DELETE FROM {tabela} WHERE id = ?", (i,))
         if tipo_pag:
             con.execute("DELETE FROM pagamentos WHERE tipo = ? AND ref_id = ?", (tipo_pag, i))
+            con.execute("DELETE FROM projecao_ajustes WHERE tipo = ? AND ref_id = ?", (tipo_pag, i))
     return f
 
 
@@ -838,6 +893,9 @@ ROTAS = [
     ("POST", r"/api/projecao/contas", lambda con, _, d: salvar_contas_projecao(con, d)),
     ("PUT", r"/api/projecao/contas/(\d+)", lambda con, i, d: salvar_conta_projecao(con, d, int(i))),
     ("DELETE", r"/api/projecao/contas/(\d+)", lambda con, i, d: apagar("projecao_contas")(con, int(i), d)),
+    ("POST", r"/api/projecao/ajustes", lambda con, _, d: salvar_ajuste(con, d)),
+    ("DELETE", r"/api/projecao/ajustes/(\d+)", lambda con, i, d: apagar("projecao_ajustes")(con, int(i), d)),
+    ("POST", r"/api/projecao/ajustes/(\d+)/desfazer-mes", lambda con, i, d: desfazer_mes_ajuste(con, int(i), d)),
     ("POST", r"/api/fontes", lambda con, _, d: salvar_fonte(con, d)),
     ("PUT", r"/api/fontes/(\d+)", lambda con, i, d: salvar_fonte(con, d, int(i))),
     ("DELETE", r"/api/fontes/(\d+)", lambda con, i, d: apagar("fontes_renda")(con, int(i), d)),
