@@ -7,6 +7,12 @@ Na aba Projeções, clicar no nome de um mês abre as despesas dele (recorrênci
 cortar, reduzir ou pausar uma delas só na projeção (nada real muda), para todos os cenários ou só um.
 O gráfico pode mostrar cada cenário também sem os ajustes.
 
+Na aba Provisões você reserva um valor por mês para gastos variáveis (ex.: Saídas, R$ 600). Ao lançar uma
+compra, escolha a provisão em "Descontar da provisão" (vem preenchido pela categoria): a compra conta como gasto
+e a linha "Provisionado – Saídas" do mês mostra só o que ainda está disponível. Em mês que já terminou conta só
+o que foi gasto (a sobra volta ao saldo); se estourar, conta o gasto. Para mudar o valor de um mês só, clique na
+provisão na aba Mês daquele mês.
+
 ## No computador
 
     python3 app.py

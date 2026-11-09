@@ -1,5 +1,5 @@
 // Teste de ponta a ponta da aba Projeções (Chrome headless via DevTools). Rodado por tests/test_e2e_projecoes.py.
-// Uso: node e2e_projecoes.js <porta-do-app> <dir-perfil-chrome> [tabela|completa]   (env CDP_PORT: porta do DevTools)
+// Uso: node e2e_projecoes.js <porta-do-app> <dir-perfil-chrome> [tabela|completa|provisoes]   (env CDP_PORT: porta do DevTools)
 const { spawn } = require("child_process");
 const PORTA = process.argv[2], PERFIL = process.argv[3], FASE = process.argv[4] || "tabela";
 const CDP = process.env.CDP_PORT || "9334";
@@ -17,7 +17,12 @@ const check = (nome, ok, extra = "") => { console.log(`${ok ? "PASS" : "FAIL"}  
   const ws = new WebSocket(tabs.find((t) => t.type === "page").webSocketDebuggerUrl);
   await new Promise((r) => (ws.onopen = r));
   let id = 0; const pend = {};
-  ws.onmessage = (e) => { const m = JSON.parse(e.data); if (m.id && pend[m.id]) pend[m.id](m.result); };
+  const errosJS = [];
+  ws.onmessage = (e) => {
+    const m = JSON.parse(e.data);
+    if (m.id && pend[m.id]) pend[m.id](m.result);
+    if (m.method === "Runtime.exceptionThrown") errosJS.push(m.params.exceptionDetails.exception?.description || m.params.exceptionDetails.text);
+  };
   const send = (method, params = {}) => new Promise((r) => { pend[++id] = r; ws.send(JSON.stringify({ id, method, params })); });
   const ev = async (x) => { const r = await send("Runtime.evaluate", { expression: x, awaitPromise: true, returnByValue: true }); return r.exceptionDetails ? "ERRO:" + r.exceptionDetails.text + JSON.stringify(r.exceptionDetails.exception?.description) : r.result?.value; };
   const esperar = async (cond, ms = 4000) => { const t = Date.now(); while (Date.now() - t < ms) { if (await ev(cond)) return true; await dorme(100); } return false; };
@@ -36,6 +41,75 @@ const check = (nome, ok, extra = "") => { console.log(`${ok ? "PASS" : "FAIL"}  
   await api("POST", "/api/recorrencias", { descricao: "Aluguel", dia: 5, valor: 3000, categoria_id: 1, inicio: "2020-01" });
 
   await send("Page.enable");
+  await send("Runtime.enable");
+  const escolher = (sel, v) => ev(`(()=>{const e=document.querySelector(${JSON.stringify(sel)});e.value=${JSON.stringify(String(v))};e.dispatchEvent(new Event("change",{bubbles:true}));return true})()`);
+  const irPara = async (hash, cond) => { await ev(`document.querySelector("#conteudo").innerHTML = ""; location.hash = ${JSON.stringify(hash)}`); return esperar(cond); };
+  const foto = async (nome) => {
+    if (!process.env.SHOTS) return;
+    const r = await send("Page.captureScreenshot", { format: "png", captureBeyondViewport: true });
+    require("fs").writeFileSync(`${process.env.SHOTS}/${nome}.png`, Buffer.from(r.data, "base64"));
+  };
+
+  // provisões: cadastro pela aba, compra descontando, valor de um mês, linha em Projeções
+  const faseProvisoes = async () => {
+    const prox = (() => { const [a, m] = mes.split("-").map(Number); const d = new Date(a, m, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; })();
+    check("aba Provisões existe na barra", await ev(`!!document.querySelector('#abas a[data-aba="provisoes"]')`));
+    const despAntes = (await api("GET", `/api/mes/${mes}`)).totais.despesas;
+    await irPara("#provisoes", `!!document.querySelector("#bt-nova")`);
+    await clicar("#bt-nova");
+    await esperar(`document.querySelector("#modal").open`);
+    await preencher('#modal input[name="descricao"]', "Saídas");
+    await preencher('#modal input[name="valor"]', "600");
+    await escolher('#modal select[name="categoria_id"]', 6);
+    await clicar("#modal-ok");
+    const criou = await esperar(`[...document.querySelectorAll("tr[data-id]")].some(t=>t.textContent.includes("Saídas"))`);
+    check("provisão criada pela aba aparece na lista", criou);
+    check("aba Provisões mostra disponível de 600", (await txt("tr[data-id] td:last-child") || "").includes("600,00"), await txt("tr[data-id] td:last-child"));
+    await foto("provisoes-aba");
+
+    await irPara(`#mes/${mes}`, `!!document.querySelector("#bt-avulso")`);
+    check("card de provisões no mês", await esperar(`!!document.querySelector("#card-provisoes")`));
+    await clicar("#bt-avulso");
+    await esperar(`document.querySelector("#modal").open && !!document.querySelector('#modal select[name="provisao_id"]')`);
+    await preencher('#modal input[name="descricao"]', "Jantar");
+    await preencher('#modal input[name="valor"]', "150");
+    await escolher('#modal select[name="categoria_id"]', 6);
+    const opc = await ev(`(()=>{const s=document.querySelector('#modal select[name="provisao_id"]');return s.options[s.selectedIndex].textContent})()`);
+    check("categoria Lazer pré-seleciona a provisão Saídas", opc === "Saídas", opc);
+    await clicar("#modal-ok");
+    const linhaProv = `tr[data-prov-id] td.num`;
+    check("provisionado – Saídas mostra disponível 450", await esperar(`(document.querySelector(${JSON.stringify(linhaProv)})?.textContent||"").includes("450,00")`), await txt(linhaProv));
+    check("rótulo 'Provisionado – Saídas'", (await txt("tr[data-prov-id] strong")) === "Provisionado – Saídas", await txt("tr[data-prov-id] strong"));
+    check("compra fica em avulsos com a etiqueta da provisão", await ev(`[...document.querySelectorAll('tr[data-tipo="avulso"]')].some(t=>t.textContent.includes("Jantar") && t.querySelector(".pill.prov")?.textContent==="Saídas")`));
+    const v1 = await api("GET", `/api/mes/${mes}`);
+    check("despesas do mês sobem só os 600 provisionados", Math.abs(v1.totais.despesas - (despAntes + 600)) < 0.001, `${despAntes} -> ${v1.totais.despesas}`);
+
+    // linha rápida também desconta da provisão da categoria
+    await clicar("#nv-desc"); await digitar("Cinema");
+    await escolher("#nv-cat", 6);
+    await clicar("#nv-valor"); await digitar("50"); await enter();
+    check("adição rápida avisa o desconto", await esperar(`(document.querySelector("#aviso")?.textContent||"").includes("descontada de Saídas")`), await txt("#aviso"));
+    check("disponível cai para 400", await esperar(`(document.querySelector(${JSON.stringify(linhaProv)})?.textContent||"").includes("400,00")`), await txt(linhaProv));
+    await foto("provisoes-mes");
+
+    // valor de um mês específico
+    await irPara(`#mes/${prox}`, `!!document.querySelector("tr[data-prov-id]")`);
+    await clicar("tr[data-prov-id]");
+    await esperar(`document.querySelector("#modal").open`);
+    await preencher('#modal input[name="valor"]', "1000");
+    await clicar("#modal-ok");
+    check("valor do mês seguinte vira 1.000", await esperar(`(document.querySelector(${JSON.stringify(linhaProv)})?.textContent||"").includes("1.000,00")`), await txt(linhaProv));
+    check("pill 'valor deste mês'", (await txt("tr[data-prov-id] .pill")) === "valor deste mês");
+
+    await irPara("#projecoes", `!!document.querySelector('tr[data-linha="prov"] td[data-i="1"]')`);
+    await esperar(`document.querySelector('tr[data-linha="prov"] td[data-i="0"]').textContent !== ""`);
+    const p0 = await txt('tr[data-linha="prov"] td[data-i="0"]'), p1 = await txt('tr[data-linha="prov"] td[data-i="1"]');
+    check("Projeções: provisões 400 no 1º mês e 1.000 no 2º", p0.includes("400") && p1.includes("1.000"), `${p0} | ${p1}`);
+
+    await irPara("#provisoes", `!!document.querySelector("tr[data-id]")`);
+    check("aba Provisões mostra disponível 400", (await txt("tr[data-id] td:last-child")).includes("400,00"), await txt("tr[data-id] td:last-child"));
+    check("nenhum erro de JavaScript", errosJS.length === 0, errosJS.join(" | "));
+  };
   await send("Page.navigate", { url: BASE + "/#projecoes" });
   await dorme(1500);
   await ev(`window.confirm = () => true`);
@@ -47,7 +121,7 @@ const check = (nome, ok, extra = "") => { console.log(`${ok ? "PASS" : "FAIL"}  
 
   check("12 colunas de mês", (await ev(`document.querySelectorAll('table.proj thead th.num').length`)) === 12);
   const linhas = await ev(`[...document.querySelectorAll('table.proj tr[data-linha]')].map(t=>t.dataset.linha).join(",")`);
-  check("ordem das linhas", linhas === "entradas,rec,parc,avulsos,previstas,cenario,saldo,acumulado,comp", linhas);
+  check("ordem das linhas", linhas === "entradas,rec,parc,avulsos,prov,previstas,cenario,saldo,acumulado,comp", linhas);
   check("1º mês é o mês atual", (await txt("table.proj thead th.num")).includes(String(mes.slice(0, 4))));
 
   // entrada digitada com soma, sem recriar o input
@@ -88,6 +162,7 @@ const check = (nome, ok, extra = "") => { console.log(`${ok ? "PASS" : "FAIL"}  
   check("sem rolagem horizontal da página em 390px", (await ev(`document.documentElement.scrollWidth <= 392`)));
   await send("Emulation.setDeviceMetricsOverride", { width: 900, height: 900, deviceScaleFactor: 1, mobile: false });
 
+  if (FASE === "provisoes") { await faseProvisoes(); console.log(falhas ? `${falhas} falha(s)` : "provisões: tudo certo"); ch.kill(); process.exit(falhas ? 1 : 0); }
   if (FASE === "tabela") { console.log(falhas ? `${falhas} falha(s)` : "tabela: tudo certo"); ch.kill(); process.exit(falhas ? 1 : 0); }
 
   // cenários e contas
@@ -245,6 +320,8 @@ const check = (nome, ok, extra = "") => { console.log(`${ok ? "PASS" : "FAIL"}  
   check("totais reais (aba Mês) intactos depois dos ajustes", (await totaisReais()) === reaisAntes, await totaisReais());
   const reaisDepois = JSON.parse(await totaisReais());
   check("recorrências reais do mês seguem em 3.930", reaisDepois.recorrencias === 3930, JSON.stringify(reaisDepois));
+
+  await faseProvisoes();
 
   console.log(falhas ? `${falhas} falha(s)` : "tudo certo");
   ch.kill(); process.exit(falhas ? 1 : 0);
