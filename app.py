@@ -126,7 +126,8 @@ CREATE TABLE IF NOT EXISTS projecao_ajustes (
     ref_id INTEGER NOT NULL,
     mes_inicio TEXT NOT NULL,                -- AAAA-MM
     mes_fim TEXT,                            -- AAAA-MM; NULL = sem fim
-    valor_centavos INTEGER NOT NULL CHECK (valor_centavos >= 0)
+    valor_centavos INTEGER NOT NULL CHECK (valor_centavos >= 0),
+    ordem INTEGER NOT NULL DEFAULT 0         -- precedência entre ajustes do mesmo nível: maior ordem vence
 );
 CREATE TABLE IF NOT EXISTS usuarios (
     id INTEGER PRIMARY KEY,
@@ -638,12 +639,12 @@ def _conta_projetada(r, meses):
 
 
 def ajuste_vigente(ajustes, tipo, ref_id, mes, cenario_id):
-    """Ajuste que vale para a despesa no mês: o do cenário vence o geral; no mesmo nível, o de maior id."""
+    """Ajuste que vale para a despesa no mês: o do cenário vence o geral; no mesmo nível, o de maior ordem."""
     candidatos = [a for a in ajustes
                   if a["tipo"] == tipo and a["ref_id"] == ref_id and a["mes_inicio"] <= mes
                   and (a["mes_fim"] is None or mes <= a["mes_fim"])
                   and (a["cenario_id"] is None or a["cenario_id"] == cenario_id)]
-    return max(candidatos, key=lambda a: (a["cenario_id"] is not None, a["id"]), default=None)
+    return max(candidatos, key=lambda a: (a["cenario_id"] is not None, a["ordem"], a["id"]), default=None)
 
 
 def projecao(con, inicio, n_meses=12):
@@ -753,8 +754,8 @@ def duplicar_cenario(con, cid, _d):
     con.execute("""INSERT INTO projecao_contas (cenario_id, descricao, total_centavos, n_parcelas, primeira_parcela)
                    SELECT ?, descricao, total_centavos, n_parcelas, primeira_parcela
                    FROM projecao_contas WHERE cenario_id = ? ORDER BY id""", (novo, cid))
-    con.execute("""INSERT INTO projecao_ajustes (cenario_id, tipo, ref_id, mes_inicio, mes_fim, valor_centavos)
-                   SELECT ?, tipo, ref_id, mes_inicio, mes_fim, valor_centavos
+    con.execute("""INSERT INTO projecao_ajustes (cenario_id, tipo, ref_id, mes_inicio, mes_fim, valor_centavos, ordem)
+                   SELECT ?, tipo, ref_id, mes_inicio, mes_fim, valor_centavos, ordem
                    FROM projecao_ajustes WHERE cenario_id = ? ORDER BY id""", (novo, cid))
     return novo
 
@@ -795,7 +796,12 @@ def salvar_conta_projecao(con, d, conta_id):
     return conta_id
 
 
+MAX_AJUSTE_CENTAVOS = 10 ** 12      # R$ 10 bilhões: acima disso é digitação errada
+
+
 def salvar_ajuste(con, d):
+    if not isinstance(d, dict):
+        raise ErroEntrada("Corpo inválido")
     tipo = d.get("tipo")
     tabela = {"rec": "recorrencias", "parc": "parcelamentos"}.get(tipo)
     if tabela is None:
@@ -807,6 +813,8 @@ def salvar_ajuste(con, d):
     valor = centavos(exigir(d, "valor"))
     if valor < 0:
         raise ErroEntrada("Valor não pode ser negativo")
+    if valor > MAX_AJUSTE_CENTAVOS:
+        raise ErroEntrada("Valor grande demais")
     inicio, fim = exigir_mes(d, "mes_inicio"), exigir_mes(d, "mes_fim", opcional=True)
     if fim is not None and fim < inicio:
         raise ErroEntrada("O mês final não pode ser anterior ao inicial")
@@ -820,8 +828,9 @@ def salvar_ajuste(con, d):
             raise ErroEntrada("Cenário não encontrado")
     else:
         raise ErroEntrada("Escopo inválido: use geral ou cenario")
-    return con.execute("""INSERT INTO projecao_ajustes (cenario_id, tipo, ref_id, mes_inicio, mes_fim, valor_centavos)
-                          VALUES (?, ?, ?, ?, ?, ?)""", (cid, tipo, ref_id, inicio, fim, valor)).lastrowid
+    ordem = con.execute("SELECT COALESCE(MAX(ordem), 0) + 1 FROM projecao_ajustes").fetchone()[0]
+    return con.execute("""INSERT INTO projecao_ajustes (cenario_id, tipo, ref_id, mes_inicio, mes_fim, valor_centavos, ordem)
+                          VALUES (?, ?, ?, ?, ?, ?, ?)""", (cid, tipo, ref_id, inicio, fim, valor, ordem)).lastrowid
 
 
 def desfazer_mes_ajuste(con, ajuste_id, d):
@@ -841,9 +850,9 @@ def desfazer_mes_ajuste(con, ajuste_id, d):
         con.execute("UPDATE projecao_ajustes SET mes_fim = ? WHERE id = ?", (somar_meses(mes, -1), ajuste_id))
     else:
         con.execute("UPDATE projecao_ajustes SET mes_fim = ? WHERE id = ?", (somar_meses(mes, -1), ajuste_id))
-        con.execute("""INSERT INTO projecao_ajustes (cenario_id, tipo, ref_id, mes_inicio, mes_fim, valor_centavos)
-                       VALUES (?, ?, ?, ?, ?, ?)""",
-                    (a["cenario_id"], a["tipo"], a["ref_id"], somar_meses(mes, 1), fim, a["valor_centavos"]))
+        con.execute("""INSERT INTO projecao_ajustes (cenario_id, tipo, ref_id, mes_inicio, mes_fim, valor_centavos, ordem)
+                       VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                    (a["cenario_id"], a["tipo"], a["ref_id"], somar_meses(mes, 1), fim, a["valor_centavos"], a["ordem"]))
 
 
 # ------------------------------------------------------------------ HTTP

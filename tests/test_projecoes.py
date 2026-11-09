@@ -440,6 +440,22 @@ class TestAjustesApi(BancoTemporario):
         self.assertEqual(chamar("POST", "/api/projecao/ajustes/999/desfazer-mes", {"mes": INICIO})[0], 400)
         self.assertEqual(contagem("projecao_ajustes"), 1)
 
+    def test_desfazer_mes_nao_muda_outros_meses_com_ajuste_sobreposto(self):
+        a1 = self.criar(valor="2000")                              # em diante, desde INICIO
+        self.criar(valor="1000", mes_inicio="2027-03")             # mais recente, em diante desde março
+        antes = self.valores()
+        self.assertEqual(antes[4:8], [1000.0] * 4)
+        chamar("POST", f"/api/projecao/ajustes/{a1}/desfazer-mes", {"mes": "2027-01"})
+        depois = self.valores()
+        self.assertEqual(depois[2], 3000.0)                        # janeiro voltou ao normal
+        self.assertEqual(depois[:2] + depois[3:], antes[:2] + antes[3:])   # nenhum outro mês mudou
+
+    def test_valor_enorme_e_corpo_que_nao_e_objeto_dao_400(self):
+        for ruim in ({"valor": "1e17"}, {"valor": "1e300"}, {"valor": 10 ** 20}):
+            self.assertEqual(chamar("POST", "/api/projecao/ajustes", self.corpo(**ruim))[0], 400, ruim)
+        self.assertEqual(chamar("POST", "/api/projecao/ajustes", [1])[0], 400)
+        self.assertEqual(contagem("projecao_ajustes"), 0)
+
     def test_apagar_ajuste_inteiro(self):
         aid = self.criar()
         self.assertEqual(chamar("DELETE", f"/api/projecao/ajustes/{aid}")[0], 200)

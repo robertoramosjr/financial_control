@@ -193,6 +193,10 @@ const check = (nome, ok, extra = "") => { console.log(`${ok ? "PASS" : "FAIL"}  
   await aplicarModal("0", "mes", "cenario");
   check("ajuste de cenário (Spotify 0) vale no cenário", (await rec(1)) === "3.700,00", await rec(1));
   check("painel: cancelado na projeção", (await txt("#proj-painel")).includes("cancelado na projeção"));
+  await linhaPainel("Spotify", "[data-editar]");
+  await esperar(`document.querySelector("#modal").open`);
+  check("editar item com ajuste do cenário já vem com 'só neste cenário' marcado", await ev(`document.querySelector('#modal [name="escopo"][value="cenario"]').checked`));
+  await ev(`document.querySelector("#modal-cancelar").click()`);
   await clicar('#proj-cenarios button[data-cen=""]'); await dorme(500);
   check("ajuste de cenário não vale em 'Sem a compra'", (await rec(1)) === "3.730,00", await rec(1));
   await abrirMes(1);

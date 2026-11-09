@@ -594,6 +594,8 @@ function modalContas({ cenarioId, conta }) {
 /** Janela para ajustar o valor de uma recorrência/parcela só na projeção (item: de cen.itens[i]). */
 function modalAjuste({ item, mes, cen }) {
   const ehBase = cen.id === null;
+  // um ajuste do cenário vence o geral: sugerir esse escopo para a edição não ficar sem efeito na tela
+  const noCenario = !ehBase && item.ajuste?.escopo === "cenario";
   abrirModal({
     titulo: `${item.descricao} — ${nomeMes(mes)}`,
     corpo: `<p class="dica">Valor de hoje: ${R(item.original)}</p>
@@ -606,8 +608,8 @@ function modalAjuste({ item, mes, cen }) {
           <input type="month" name="fim" min="${mes}"></label>
       </fieldset>
       <fieldset class="campo"><legend>Aplicar em</legend>
-        <label><input type="radio" name="escopo" value="geral" checked> todos os cenários</label>
-        ${ehBase ? "" : `<label><input type="radio" name="escopo" value="cenario"> só em ${esc(cen.nome)}</label>`}
+        <label><input type="radio" name="escopo" value="geral" ${noCenario ? "" : "checked"}> todos os cenários</label>
+        ${ehBase ? "" : `<label><input type="radio" name="escopo" value="cenario" ${noCenario ? "checked" : ""}> só em ${esc(cen.nome)}</label>`}
       </fieldset>
       <p class="dica">Não altera Mês, Recorrências nem nenhum lançamento real.</p>`,
     textoOk: "Aplicar na projeção",
