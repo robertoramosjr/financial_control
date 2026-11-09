@@ -158,5 +158,100 @@ class TestProvisoesMes(BancoTemporario):
         self.assertEqual(v["totais"]["avulsos"], 12.34)
 
 
+PROV = {"descricao": "Saídas", "valor": "600", "categoria_id": 1, "inicio": "2026-01", "fim": None}
+FUTURO = "2099-05"
+
+
+class TestProvisoesApi(BancoTemporario):
+    def criar(self, **extra):
+        st, r = chamar("POST", "/api/provisoes", {**PROV, **extra})
+        self.assertEqual(st, 200, r)
+        return r["id"]
+
+    def mes(self, mes=FUTURO):
+        st, v = chamar("GET", f"/api/mes/{mes}")
+        self.assertEqual(st, 200, v)
+        return v
+
+    def test_crud_provisao(self):
+        pid = self.criar()
+        st, lista = chamar("GET", "/api/provisoes")
+        self.assertEqual((st, len(lista), lista[0]["valor"], lista[0]["descricao"]), (200, 1, 600.0, "Saídas"))
+        st, _ = chamar("PUT", f"/api/provisoes/{pid}", {**PROV, "valor": "700"})
+        self.assertEqual(st, 200)
+        self.assertEqual(chamar("GET", "/api/provisoes")[1][0]["valor"], 700.0)
+        st, _ = chamar("DELETE", f"/api/provisoes/{pid}")
+        self.assertEqual((st, chamar("GET", "/api/provisoes")[1]), (200, []))
+
+    def test_editar_provisao_inexistente_400(self):
+        st, _ = chamar("PUT", "/api/provisoes/999", PROV)
+        self.assertEqual(st, 400)
+
+    def test_provisao_invalida_400_sem_gravar(self):
+        casos = [{"valor": "-1"}, {"valor": "inf"}, {"valor": "abc"}, {"fim": "2025-12"},
+                 {"inicio": "2026-13"}, {"categoria_id": 999}, {"descricao": ""}]
+        for extra in casos:
+            with self.subTest(extra=extra):
+                st, _ = chamar("POST", "/api/provisoes", {**PROV, **extra})
+                self.assertEqual(st, 400)
+                self.assertEqual(contagem("provisoes"), 0)
+
+    def test_valor_do_mes_grava_troca_e_apaga(self):
+        pid = self.criar()
+        url = f"/api/provisoes/{pid}/meses"
+        self.assertEqual(chamar("PUT", url, {"mes": FUTURO, "valor": "1000"})[0], 200)
+        self.assertEqual(self.mes()["provisoes"][0]["provisionado"], 1000.0)
+        chamar("PUT", url, {"mes": FUTURO, "valor": "800"})
+        self.assertEqual(self.mes()["provisoes"][0]["provisionado"], 800.0)
+        chamar("PUT", url, {"mes": FUTURO, "valor": ""})
+        p = self.mes()["provisoes"][0]
+        self.assertEqual((p["provisionado"], p["valor_do_mes"]), (600.0, False))
+        self.assertEqual(chamar("PUT", url, {"mes": FUTURO, "valor": "-5"})[0], 400)
+        self.assertEqual(chamar("PUT", url, {"mes": "2026-13", "valor": "5"})[0], 400)
+        self.assertEqual(chamar("PUT", "/api/provisoes/999/meses", {"mes": FUTURO, "valor": "5"})[0], 400)
+        self.assertEqual(contagem("provisao_meses"), 0)
+
+    def test_lancamento_com_provisao(self):
+        pid = self.criar()
+        corpo = {"mes": FUTURO, "descricao": "Jantar", "valor": 150, "categoria_id": 1, "provisao_id": pid}
+        st, r = chamar("POST", "/api/lancamentos", corpo)
+        self.assertEqual(st, 200, r)
+        v = self.mes()
+        self.assertEqual((v["avulsos"][0]["provisao_id"], v["avulsos"][0]["provisao"]), (pid, "Saídas"))
+        self.assertEqual((v["provisoes"][0]["disponivel"], v["totais"]["despesas"]), (450.0, 600.0))
+        st, _ = chamar("PUT", f"/api/lancamentos/{r['id']}", {**corpo, "provisao_id": None})
+        self.assertEqual(st, 200)
+        v = self.mes()
+        self.assertEqual((v["provisoes"][0]["disponivel"], v["totais"]["despesas"]), (600.0, 750.0))
+
+    def test_lancamento_com_provisao_invalida_400(self):
+        self.criar()
+        for pid in (999, "1", True):
+            with self.subTest(pid=pid):
+                st, _ = chamar("POST", "/api/lancamentos", {"mes": FUTURO, "descricao": "X", "valor": 1,
+                                                            "categoria_id": 1, "provisao_id": pid})
+                self.assertEqual(st, 400)
+                self.assertEqual(contagem("lancamentos"), 0)
+
+    def test_apagar_provisao_mantem_as_compras(self):
+        pid = self.criar()
+        chamar("POST", "/api/lancamentos", {"mes": FUTURO, "descricao": "Jantar", "valor": 150,
+                                           "categoria_id": 1, "provisao_id": pid})
+        chamar("PUT", f"/api/provisoes/{pid}/meses", {"mes": FUTURO, "valor": "900"})
+        self.assertEqual(chamar("DELETE", f"/api/provisoes/{pid}")[0], 200)
+        v = self.mes()
+        self.assertEqual((v["avulsos"][0]["provisao_id"], v["totais"]["despesas"]), (None, 150.0))
+        self.assertEqual(contagem("provisao_meses"), 0)
+
+    def test_categoria_usada_por_provisao(self):
+        cid = chamar("POST", "/api/categorias", {"nome": "Saídas"})[1]["id"]
+        pid = self.criar(categoria_id=cid)
+        cat = next(c for c in chamar("GET", "/api/categorias")[1] if c["id"] == cid)
+        self.assertEqual(cat["usos"], 1)
+        self.assertEqual(chamar("DELETE", f"/api/categorias/{cid}", {})[0], 400)
+        self.assertEqual(chamar("DELETE", f"/api/categorias/{cid}", {"mover_para": 1})[0], 200)
+        self.assertEqual(chamar("GET", "/api/provisoes")[1][0]["categoria_id"], 1)
+
+
 if __name__ == "__main__":
     unittest.main()

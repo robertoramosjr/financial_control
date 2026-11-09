@@ -579,15 +579,81 @@ def salvar_parcelamento(con, d, pid=None):
     return pid
 
 
+def exigir_provisao(con, d):
+    pid = d.get("provisao_id")
+    if pid is None:
+        return None
+    if not isinstance(pid, int) or isinstance(pid, bool) or \
+            not con.execute("SELECT 1 FROM provisoes WHERE id = ?", (pid,)).fetchone():
+        raise ErroEntrada("Provisão não encontrada")
+    return pid
+
+
 def salvar_lancamento(con, d, lid=None):
     campos = (exigir_mes(d, "mes"), exigir(d, "descricao"), exigir_data(d, "data", opcional=True),
-              centavos(exigir(d, "valor")), exigir_categoria(con, d), 1 if d.get("pago") else 0)
+              centavos(exigir(d, "valor")), exigir_categoria(con, d), 1 if d.get("pago") else 0,
+              exigir_provisao(con, d))
     if lid is None:
-        return con.execute("""INSERT INTO lancamentos (mes, descricao, data, valor_centavos, categoria_id, pago)
-                              VALUES (?, ?, ?, ?, ?, ?)""", campos).lastrowid
-    con.execute("""UPDATE lancamentos SET mes=?, descricao=?, data=?, valor_centavos=?, categoria_id=?, pago=?
-                   WHERE id = ?""", campos + (lid,))
+        return con.execute("""INSERT INTO lancamentos (mes, descricao, data, valor_centavos, categoria_id, pago, provisao_id)
+                              VALUES (?, ?, ?, ?, ?, ?, ?)""", campos).lastrowid
+    con.execute("""UPDATE lancamentos SET mes=?, descricao=?, data=?, valor_centavos=?, categoria_id=?, pago=?,
+                   provisao_id=? WHERE id = ?""", campos + (lid,))
     return lid
+
+
+def listar_provisoes(con):
+    hoje = date.today().isoformat()[:7]
+    rows = con.execute("""SELECT p.*, c.nome AS categoria FROM provisoes p
+                          JOIN categorias c ON c.id = p.categoria_id
+                          ORDER BY (p.fim IS NOT NULL AND p.fim < ?), p.descricao COLLATE NOCASE""",
+                       (hoje,)).fetchall()
+    return [{
+        "id": r["id"], "descricao": r["descricao"], "valor": reais(r["valor_centavos"]),
+        "categoria_id": r["categoria_id"], "categoria": r["categoria"],
+        "inicio": r["inicio"], "fim": r["fim"],
+        "ativa": r["inicio"] <= hoje and (r["fim"] is None or r["fim"] >= hoje),
+    } for r in rows]
+
+
+def valor_provisao(v):
+    c = centavos(v)
+    if c < 0:
+        raise ErroEntrada("Valor não pode ser negativo")
+    if c > MAX_AJUSTE_CENTAVOS:
+        raise ErroEntrada("Valor grande demais")
+    return c
+
+
+def salvar_provisao(con, d, pid=None):
+    inicio, fim = exigir_mes(d, "inicio"), exigir_mes(d, "fim", opcional=True)
+    if fim and fim < inicio:
+        raise ErroEntrada("O mês final não pode ser antes do inicial")
+    campos = (exigir(d, "descricao"), exigir_categoria(con, d), valor_provisao(exigir(d, "valor")), inicio, fim)
+    if pid is None:
+        return con.execute("""INSERT INTO provisoes (descricao, categoria_id, valor_centavos, inicio, fim)
+                              VALUES (?, ?, ?, ?, ?)""", campos).lastrowid
+    if con.execute("""UPDATE provisoes SET descricao=?, categoria_id=?, valor_centavos=?, inicio=?, fim=?
+                      WHERE id = ?""", campos + (pid,)).rowcount == 0:
+        raise ErroEntrada("Provisão não encontrada")
+    return pid
+
+
+def salvar_valor_mes_provisao(con, pid, d):
+    mes, valor = exigir_mes(d, "mes"), d.get("valor")
+    if not con.execute("SELECT 1 FROM provisoes WHERE id = ?", (pid,)).fetchone():
+        raise ErroEntrada("Provisão não encontrada")
+    if valor is None or (isinstance(valor, str) and not valor.strip()):
+        con.execute("DELETE FROM provisao_meses WHERE provisao_id = ? AND mes = ?", (pid, mes))
+        return
+    con.execute("""INSERT INTO provisao_meses (provisao_id, mes, valor_centavos) VALUES (?, ?, ?)
+                   ON CONFLICT (provisao_id, mes) DO UPDATE SET valor_centavos = excluded.valor_centavos""",
+                (pid, mes, valor_provisao(valor)))
+
+
+def apagar_provisao(con, pid, _d):
+    con.execute("UPDATE lancamentos SET provisao_id = NULL WHERE provisao_id = ?", (pid,))
+    con.execute("DELETE FROM provisao_meses WHERE provisao_id = ?", (pid,))
+    con.execute("DELETE FROM provisoes WHERE id = ?", (pid,))
 
 
 def marcar_pago(con, d):
@@ -608,7 +674,8 @@ def listar_categorias(con):
         SELECT c.id, c.nome, c.ordem,
           (SELECT COUNT(*) FROM recorrencias WHERE categoria_id = c.id)
         + (SELECT COUNT(*) FROM parcelamentos WHERE categoria_id = c.id)
-        + (SELECT COUNT(*) FROM lancamentos WHERE categoria_id = c.id) AS usos
+        + (SELECT COUNT(*) FROM lancamentos WHERE categoria_id = c.id)
+        + (SELECT COUNT(*) FROM provisoes WHERE categoria_id = c.id) AS usos
         FROM categorias c ORDER BY c.ordem, c.nome""")]
 
 
@@ -629,7 +696,7 @@ def apagar_categoria(con, cid, d):
     if destino:
         if int(destino) == cid:
             raise ErroEntrada("Escolha outra categoria para receber os itens")
-        for tabela in ("recorrencias", "parcelamentos", "lancamentos"):
+        for tabela in ("recorrencias", "parcelamentos", "lancamentos", "provisoes"):
             con.execute(f"UPDATE {tabela} SET categoria_id = ? WHERE categoria_id = ?", (destino, cid))
     try:
         con.execute("DELETE FROM categorias WHERE id = ?", (cid,))
@@ -946,6 +1013,12 @@ ROTAS = [
     ("POST", r"/api/lancamentos", lambda con, _, d: salvar_lancamento(con, d)),
     ("PUT", r"/api/lancamentos/(\d+)", lambda con, i, d: salvar_lancamento(con, d, int(i))),
     ("DELETE", r"/api/lancamentos/(\d+)", lambda con, i, d: apagar("lancamentos")(con, int(i), d)),
+
+    ("GET", r"/api/provisoes", lambda con, _, q: listar_provisoes(con)),
+    ("POST", r"/api/provisoes", lambda con, _, d: salvar_provisao(con, d)),
+    ("PUT", r"/api/provisoes/(\d+)", lambda con, i, d: salvar_provisao(con, d, int(i))),
+    ("DELETE", r"/api/provisoes/(\d+)", lambda con, i, d: apagar_provisao(con, int(i), d)),
+    ("PUT", r"/api/provisoes/(\d+)/meses", lambda con, i, d: salvar_valor_mes_provisao(con, int(i), d)),
 
     ("GET", r"/api/entradas/(\d{4})", lambda con, a, q: entradas_ano(con, int(a))),
     ("PUT", r"/api/entradas", lambda con, _, d: salvar_entrada(con, d)),
