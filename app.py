@@ -118,6 +118,16 @@ CREATE TABLE IF NOT EXISTS projecao_contas (
     n_parcelas INTEGER NOT NULL CHECK (n_parcelas >= 1),
     primeira_parcela TEXT NOT NULL           -- AAAA-MM
 );
+-- Projeções: ajuste de valor de recorrência/parcela só na projeção; cenario_id NULL = vale para todos.
+CREATE TABLE IF NOT EXISTS projecao_ajustes (
+    id INTEGER PRIMARY KEY,
+    cenario_id INTEGER REFERENCES cenarios(id) ON DELETE CASCADE,
+    tipo TEXT NOT NULL CHECK (tipo IN ('rec', 'parc')),
+    ref_id INTEGER NOT NULL,
+    mes_inicio TEXT NOT NULL,                -- AAAA-MM
+    mes_fim TEXT,                            -- AAAA-MM; NULL = sem fim
+    valor_centavos INTEGER NOT NULL CHECK (valor_centavos >= 0)
+);
 CREATE TABLE IF NOT EXISTS usuarios (
     id INTEGER PRIMARY KEY,
     nome TEXT NOT NULL UNIQUE COLLATE NOCASE,
@@ -627,9 +637,20 @@ def _conta_projetada(r, meses):
             "n_parcelas": r["n_parcelas"], "primeira_parcela": r["primeira_parcela"], "valores": valores}
 
 
+def ajuste_vigente(ajustes, tipo, ref_id, mes, cenario_id):
+    """Ajuste que vale para a despesa no mês: o do cenário vence o geral; no mesmo nível, o de maior id."""
+    candidatos = [a for a in ajustes
+                  if a["tipo"] == tipo and a["ref_id"] == ref_id and a["mes_inicio"] <= mes
+                  and (a["mes_fim"] is None or mes <= a["mes_fim"])
+                  and (a["cenario_id"] is None or a["cenario_id"] == cenario_id)]
+    return max(candidatos, key=lambda a: (a["cenario_id"] is not None, a["id"]), default=None)
+
+
 def projecao(con, inicio, n_meses=12):
     meses = [somar_meses(inicio, i) for i in range(n_meses)]
-    visoes = [visao_mes(con, m)["totais"] for m in meses]
+    vms = [visao_mes(con, m) for m in meses]
+    visoes = [v["totais"] for v in vms]
+    ajustes = con.execute("SELECT * FROM projecao_ajustes ORDER BY id").fetchall()
     digitadas = {r["mes"]: r["valor_centavos"] for r in con.execute("SELECT mes, valor_centavos FROM projecao_entradas")}
     entradas = []
     for m, t in zip(meses, visoes):
@@ -641,23 +662,49 @@ def projecao(con, inicio, n_meses=12):
             entradas.append({"valor": 0.0, "origem": "vazia"})
     base = {"recorrencias": [t["recorrencias"] for t in visoes], "parcelas": [t["parcelas"] for t in visoes],
             "avulsos": [t["avulsos"] for t in visoes]}
-    fixas = [sum(x) for x in zip(base["recorrencias"], base["parcelas"], base["avulsos"])]
 
     todas = con.execute("SELECT * FROM projecao_contas ORDER BY id").fetchall()
     previstas = [_conta_projetada(r, meses) for r in todas if r["cenario_id"] is None]
 
+    def itens_do_cenario(cid):
+        """Itens (recorrências e parcelas) de cada mês, com o ajuste vigente aplicado."""
+        por_mes = []
+        for m, vm in zip(meses, vms):
+            lista = []
+            for i in vm["recorrencias"] + vm["parcelas"]:
+                a = ajuste_vigente(ajustes, i["tipo"], i["id"], m, cid)
+                lista.append({
+                    "tipo": i["tipo"], "id": i["id"], "descricao": i["descricao"],
+                    "parcela": i.get("parcela"), "n_parcelas": i.get("n_parcelas"),
+                    "original": i["valor"], "valor": reais(a["valor_centavos"]) if a else i["valor"],
+                    "ajuste": {"id": a["id"], "escopo": "cenario" if a["cenario_id"] is not None else "geral",
+                               "mes_inicio": a["mes_inicio"], "mes_fim": a["mes_fim"]} if a else None})
+            por_mes.append(lista)
+        return por_mes
+
     def resultado(cid, nome, contas):
-        despesas = [round(fixas[i] + sum(c["valores"][i] for c in previstas + contas), 2) for i in range(n_meses)]
-        saldo = [round(entradas[i]["valor"] - despesas[i], 2) for i in range(n_meses)]
-        acumulado, soma = [], 0.0
+        itens = itens_do_cenario(cid)
+        soma = lambda i, tipo: round(sum(x["valor"] for x in itens[i] if x["tipo"] == tipo), 2)
+        base_c = {"recorrencias": [soma(i, "rec") for i in range(n_meses)],
+                  "parcelas": [soma(i, "parc") for i in range(n_meses)]}
+        extras = [sum(c["valores"][i] for c in previstas + contas) for i in range(n_meses)]
+
+        def serie(rec, parc):
+            despesas = [round(rec[i] + parc[i] + base["avulsos"][i] + extras[i], 2) for i in range(n_meses)]
+            saldo = [round(entradas[i]["valor"] - despesas[i], 2) for i in range(n_meses)]
+            comp = [despesas[i] / entradas[i]["valor"] if entradas[i]["valor"] else None for i in range(n_meses)]
+            return despesas, saldo, comp
+
+        despesas, saldo, comp = serie(base_c["recorrencias"], base_c["parcelas"])
+        sem = serie(base["recorrencias"], base["parcelas"])
+        acumulado, total = [], 0.0
         for s in saldo:
-            soma = round(soma + s, 2)
-            acumulado.append(soma)
+            total = round(total + s, 2)
+            acumulado.append(total)
         pior = min(range(n_meses), key=lambda i: saldo[i])
-        return {"id": cid, "nome": nome, "contas": contas, "despesas": despesas, "saldo": saldo,
-                "acumulado": acumulado,
-                "comprometimento": [despesas[i] / entradas[i]["valor"] if entradas[i]["valor"] else None
-                                    for i in range(n_meses)],
+        return {"id": cid, "nome": nome, "contas": contas, "base": base_c, "itens": itens,
+                "despesas": despesas, "saldo": saldo, "acumulado": acumulado, "comprometimento": comp,
+                "sem_ajustes": {"despesas": sem[0], "saldo": sem[1], "comprometimento": sem[2]},
                 "pior_mes": {"mes": meses[pior], "saldo": saldo[pior]}}
 
     cenarios = [resultado(None, "Sem a compra", [])]

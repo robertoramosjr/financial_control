@@ -255,5 +255,108 @@ class TestApi(BancoTemporario):
         self.assertEqual(contagem("projecao_entradas"), 0)
 
 
+def ajuste(con, cenario_id, tipo, ref_id, inicio, fim, valor):
+    return con.execute("""INSERT INTO projecao_ajustes (cenario_id, tipo, ref_id, mes_inicio, mes_fim, valor_centavos)
+                          VALUES (?, ?, ?, ?, ?, ?)""", (cenario_id, tipo, ref_id, inicio, fim, round(valor * 100))).lastrowid
+
+
+def rec_id(con, valor=3000):
+    recorrencia(con, valor)
+    return con.execute("SELECT MAX(id) FROM recorrencias").fetchone()[0]
+
+
+class TestAjustes(BancoTemporario):
+    def test_sem_ajustes_nada_muda(self):
+        with app.conectar() as con:
+            rec_id(con)
+            c = app.projecao(con, INICIO)["cenarios"][0]
+        self.assertEqual(c["despesas"], c["sem_ajustes"]["despesas"])
+        self.assertEqual(c["saldo"], c["sem_ajustes"]["saldo"])
+        self.assertEqual(c["base"]["recorrencias"][0], 3000.0)
+
+    def test_ajuste_so_neste_mes(self):
+        with app.conectar() as con:
+            r = rec_id(con)
+            ajuste(con, None, "rec", r, INICIO, INICIO, 2000)
+            c = app.projecao(con, INICIO)["cenarios"][0]
+        self.assertEqual(c["despesas"][:2], [2000.0, 3000.0])
+        self.assertEqual(c["sem_ajustes"]["despesas"][0], 3000.0)
+        item = c["itens"][0][0]
+        self.assertEqual((item["original"], item["valor"]), (3000.0, 2000.0))
+        self.assertEqual(item["ajuste"]["escopo"], "geral")
+        self.assertIsNone(c["itens"][1][0]["ajuste"])
+
+    def test_ajuste_em_diante_e_intervalo_pausa(self):
+        with app.conectar() as con:
+            r = rec_id(con)
+            ajuste(con, None, "rec", r, INICIO, None, 2500)
+            c = app.projecao(con, INICIO)["cenarios"][0]
+            self.assertEqual(c["despesas"], [2500.0] * 12)
+            con.execute("DELETE FROM projecao_ajustes")
+            ajuste(con, None, "rec", r, INICIO, "2026-12", 0)
+            c = app.projecao(con, INICIO)["cenarios"][0]
+        self.assertEqual(c["despesas"][:4], [0.0, 0.0, 3000.0, 3000.0])
+
+    def test_ajuste_de_cenario_vale_so_nele(self):
+        with app.conectar() as con:
+            r = rec_id(con)
+            a, b = cenario(con, "A"), cenario(con, "B")
+            ajuste(con, a, "rec", r, INICIO, INICIO, 1000)
+            cs = {c["nome"]: c for c in app.projecao(con, INICIO)["cenarios"]}
+        self.assertEqual(cs["A"]["despesas"][0], 1000.0)
+        self.assertEqual(cs["A"]["itens"][0][0]["ajuste"]["escopo"], "cenario")
+        self.assertEqual(cs["B"]["despesas"][0], 3000.0)
+        self.assertEqual(cs["Sem a compra"]["despesas"][0], 3000.0)
+
+    def test_ajuste_do_cenario_vence_o_geral(self):
+        with app.conectar() as con:
+            r = rec_id(con)
+            a = cenario(con, "A")
+            ajuste(con, None, "rec", r, INICIO, INICIO, 2000)
+            ajuste(con, a, "rec", r, INICIO, INICIO, 1000)
+            cs = {c["nome"]: c for c in app.projecao(con, INICIO)["cenarios"]}
+        self.assertEqual(cs["A"]["despesas"][0], 1000.0)
+        self.assertEqual(cs["Sem a compra"]["despesas"][0], 2000.0)
+
+    def test_mais_recente_vence_no_mesmo_nivel(self):
+        with app.conectar() as con:
+            r = rec_id(con)
+            ajuste(con, None, "rec", r, INICIO, None, 2000)
+            ajuste(con, None, "rec", r, INICIO, INICIO, 500)
+            c = app.projecao(con, INICIO)["cenarios"][0]
+        self.assertEqual(c["despesas"][:2], [500.0, 2000.0])
+
+    def test_ajuste_em_parcela_e_fora_da_vida(self):
+        with app.conectar() as con:
+            con.execute("""INSERT INTO parcelamentos (descricao, primeira_parcela, valor_parcela_centavos, n_parcelas, categoria_id)
+                           VALUES ('Sofá', ?, 10000, 3, 1)""", (INICIO + "-10",))
+            pid = con.execute("SELECT MAX(id) FROM parcelamentos").fetchone()[0]
+            ajuste(con, None, "parc", pid, INICIO, "2027-10", 50)
+            c = app.projecao(con, INICIO)["cenarios"][0]
+        self.assertEqual(c["base"]["parcelas"], [50.0, 50.0, 50.0] + [0.0] * 9)
+        self.assertEqual(c["itens"][3], [])
+        self.assertEqual(c["itens"][0][0]["parcela"], 1)
+        self.assertEqual(c["itens"][0][0]["n_parcelas"], 3)
+
+    def test_ajuste_nao_toca_os_totais_reais(self):
+        with app.conectar() as con:
+            r = rec_id(con)
+            antes = app.visao_mes(con, INICIO)["totais"]
+            ajuste(con, None, "rec", r, INICIO, None, 1)
+            app.projecao(con, INICIO)
+            self.assertEqual(app.visao_mes(con, INICIO)["totais"], antes)
+            self.assertEqual(con.execute("SELECT valor_centavos FROM recorrencias").fetchone()[0], 300000)
+
+    def test_sem_ajustes_nunca_inclui_ajuste_nenhum(self):
+        with app.conectar() as con:
+            r = rec_id(con)
+            a = cenario(con, "A")
+            ajuste(con, None, "rec", r, INICIO, None, 1)
+            ajuste(con, a, "rec", r, INICIO, None, 2)
+            cs = app.projecao(con, INICIO)["cenarios"]
+        for c in cs:
+            self.assertEqual(c["sem_ajustes"]["despesas"], [3000.0] * 12)
+
+
 if __name__ == "__main__":
     unittest.main()
