@@ -456,6 +456,24 @@ class TestAjustesApi(BancoTemporario):
         self.assertEqual(chamar("POST", "/api/projecao/ajustes", [1])[0], 400)
         self.assertEqual(contagem("projecao_ajustes"), 0)
 
+    def test_item_informa_o_ajuste_que_passa_a_valer_ao_desfazer(self):
+        cid = self.cenario()
+        self.criar(valor="2000")                                            # geral, em diante
+        self.criar(valor="500", escopo="cenario", cenario_id=cid, mes_fim=INICIO)
+        with app.conectar() as con:
+            cen = app.projecao(con, INICIO)["cenarios"][1]
+        abaixo = cen["itens"][0][0]["ajuste_abaixo"]
+        self.assertEqual((abaixo["escopo"], abaixo["valor"]), ("geral", 2000.0))
+        self.assertIsNone(cen["itens"][1][0]["ajuste_abaixo"])             # só o geral vale em dezembro
+        self.assertIsNone(cen["itens"][2][0]["ajuste"] and cen["itens"][2][0]["ajuste_abaixo"])
+
+    def test_valor_que_arredonda_para_zero_centavos_e_recusado(self):
+        for ruim in ("0.001", "0,004", 0.002):
+            self.assertEqual(chamar("POST", "/api/projecao/ajustes", self.corpo(valor=ruim))[0], 400, ruim)
+        self.assertEqual(contagem("projecao_ajustes"), 0)
+        for bom in ("0", 0, "0,00", "0.01"):
+            self.assertEqual(chamar("POST", "/api/projecao/ajustes", self.corpo(valor=bom))[0], 200, bom)
+
     def test_apagar_ajuste_inteiro(self):
         aid = self.criar()
         self.assertEqual(chamar("DELETE", f"/api/projecao/ajustes/{aid}")[0], 200)

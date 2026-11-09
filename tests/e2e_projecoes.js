@@ -197,6 +197,22 @@ const check = (nome, ok, extra = "") => { console.log(`${ok ? "PASS" : "FAIL"}  
   await esperar(`document.querySelector("#modal").open`);
   check("editar item com ajuste do cenário já vem com 'só neste cenário' marcado", await ev(`document.querySelector('#modal [name="escopo"][value="cenario"]').checked`));
   await ev(`document.querySelector("#modal-cancelar").click()`);
+
+  // desfazer: mostra o escopo, pede confirmação mesmo de um mês só e avisa o que passa a valer
+  await linhaPainel("Spotify", "[data-desfazer]");
+  check("desfazer de um mês só abre confirmação (não apaga direto)", await esperar(`document.querySelector("#modal").open`));
+  check("confirmação diz que o ajuste é só deste cenário", (await txt("#modal-corpo")).includes("só neste cenário"), await txt("#modal-corpo"));
+  await ev(`document.querySelector("#modal-cancelar").click()`);
+  check("cancelar a confirmação mantém o ajuste", (await rec(1)) === "3.700,00", await rec(1));
+  await api("POST", "/api/projecao/ajustes", { tipo: "rec", ref_id: comb, valor: 500, mes_inicio: mesesP[1], mes_fim: mesesP[1], escopo: "cenario", cenario_id: cen });
+  await ev(`render()`); await dorme(800);
+  await linhaPainel("Combustível", "[data-desfazer]");
+  await esperar(`document.querySelector("#modal").open`);
+  check("desfazer avisa qual ajuste passa a valer", (await txt("#modal-corpo")).includes("passa a valer") && (await txt("#modal-corpo")).includes("todos os cenários"), await txt("#modal-corpo"));
+  await enviarModal();
+  check("confirmar desfaz o ajuste do cenário e revela o geral", (await rec(1)) === "3.700,00" && (await ev(`!document.querySelector("#modal").open`)), await rec(1));
+  check("normalizarMes aceita AAAA-MM, MM/AAAA e rejeita lixo", await ev(`normalizarMes("2027-03")==="2027-03" && normalizarMes("03/2027")==="2027-03" && normalizarMes("3/2027")==="2027-03" && normalizarMes("13/2027")===null && normalizarMes("abc")===null`));
+
   await clicar('#proj-cenarios button[data-cen=""]'); await dorme(500);
   check("ajuste de cenário não vale em 'Sem a compra'", (await rec(1)) === "3.730,00", await rec(1));
   await abrirMes(1);

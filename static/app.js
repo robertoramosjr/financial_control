@@ -605,7 +605,7 @@ function modalAjuste({ item, mes, cen }) {
         <label><input type="radio" name="alcance" value="mes" checked> só ${nomeMes(mes)}</label>
         <label><input type="radio" name="alcance" value="diante"> ${nomeMes(mes)} em diante</label>
         <label><input type="radio" name="alcance" value="ate"> de ${nomeMes(mes)} até
-          <input type="month" name="fim" min="${mes}"></label>
+          <input type="month" name="fim" min="${mes}" placeholder="AAAA-MM"></label>
       </fieldset>
       <fieldset class="campo"><legend>Aplicar em</legend>
         <label><input type="radio" name="escopo" value="geral" ${noCenario ? "" : "checked"}> todos os cenários</label>
@@ -620,8 +620,9 @@ function modalAjuste({ item, mes, cen }) {
       if (f.alcance === "mes") fim = mes;
       else if (f.alcance === "ate") {
         if (!f.fim) throw new Error("Informe o mês final");
-        if (f.fim < mes) throw new Error("O mês final não pode ser anterior ao inicial");
-        fim = f.fim;
+        fim = normalizarMes(f.fim);
+        if (!fim) throw new Error("Mês final inválido: use AAAA-MM");
+        if (fim < mes) throw new Error("O mês final não pode ser anterior ao inicial");
       }
       await api("POST", "/api/projecao/ajustes", {
         tipo: item.tipo, ref_id: item.id, valor, mes_inicio: mes, mes_fim: fim,
@@ -631,21 +632,33 @@ function modalAjuste({ item, mes, cen }) {
   });
 }
 
-/** Desfaz o ajuste de uma despesa num mês; se ele cobre vários meses, pergunta o alcance. */
-async function desfazerAjuste({ item, mes }) {
-  const a = item.ajuste;
-  if (a.mes_inicio === a.mes_fim) {
-    try { await api("DELETE", `/api/projecao/ajustes/${a.id}`); render(); }
-    catch (e) { aviso(e.message, true); }
-    return;
-  }
+/** "AAAA-MM", "MM/AAAA" ou "M/AAAA" -> "AAAA-MM"; null se não for um mês válido (navegadores sem campo de mês). */
+function normalizarMes(txt) {
+  const t = String(txt ?? "").trim();
+  const [, a1, m1] = t.match(/^(\d{4})-(\d{1,2})$/) || [];
+  const [, m2, a2] = t.match(/^(\d{1,2})\/(\d{4})$/) || [];
+  const ano = a1 || a2, mes = Number(m1 || m2);
+  return ano && mes >= 1 && mes <= 12 ? `${ano}-${pad(mes)}` : null;
+}
+
+/** Desfaz o ajuste de uma despesa num mês, sempre com confirmação: diz o escopo e o que passa a valer. */
+function desfazerAjuste({ item, mes }) {
+  const a = item.ajuste, b = item.ajuste_abaixo;
+  const escopo = (x) => (x.escopo === "geral" ? "todos os cenários" : "só neste cenário");
+  const multi = a.mes_inicio !== a.mes_fim;
+  const vale = `de ${nomeMes(a.mes_inicio)} ${a.mes_fim ? `até ${nomeMes(a.mes_fim)}` : "em diante"}`;
+  const depois = b ? `Em ${nomeMes(mes)}, depois de desfazer, passa a valer outro ajuste (${escopo(b)}): ${R(b.valor)}.`
+    : `Em ${nomeMes(mes)}, depois de desfazer, volta ao valor normal: ${R(item.original)}.`;
   abrirModal({
     titulo: `Desfazer ajuste — ${item.descricao}`,
-    corpo: `<p>Este ajuste vale de ${nomeMes(a.mes_inicio)} ${a.mes_fim ? `até ${nomeMes(a.mes_fim)}` : "em diante"}.
-      Desfazer só ${nomeMes(mes)} ou o ajuste inteiro?</p>`,
-    textoOk: `Só ${nomeMes(mes)}`,
-    salvar: () => api("POST", `/api/projecao/ajustes/${a.id}/desfazer-mes`, { mes }),
-    apagar: async () => { await api("DELETE", `/api/projecao/ajustes/${a.id}`); return true; },
+    corpo: `<p>Ajuste <strong>${escopo(a)}</strong>: ${R(item.valor)} ${vale}.
+      ${a.escopo === "geral" ? "Por ser geral, desfazer vale para todos os cenários." : ""}</p>
+      <p>${multi ? `Desfazer só ${nomeMes(mes)} ou o ajuste inteiro?` : "Desfazer este ajuste?"}</p>
+      <p class="dica">${depois}</p>`,
+    textoOk: multi ? `Só ${nomeMes(mes)}` : "Desfazer",
+    salvar: () => (multi ? api("POST", `/api/projecao/ajustes/${a.id}/desfazer-mes`, { mes })
+      : api("DELETE", `/api/projecao/ajustes/${a.id}`)),
+    apagar: multi ? async () => { await api("DELETE", `/api/projecao/ajustes/${a.id}`); return true; } : null,
     aoAbrir: () => { $("#modal-apagar").textContent = "O ajuste inteiro"; },
   });
 }

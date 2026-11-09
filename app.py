@@ -674,12 +674,16 @@ def projecao(con, inicio, n_meses=12):
             lista = []
             for i in vm["recorrencias"] + vm["parcelas"]:
                 a = ajuste_vigente(ajustes, i["tipo"], i["id"], m, cid)
+                # o que passaria a valer neste mês se o ajuste vigente fosse desfeito
+                b = ajuste_vigente([x for x in ajustes if x["id"] != a["id"]], i["tipo"], i["id"], m, cid) if a else None
                 lista.append({
                     "tipo": i["tipo"], "id": i["id"], "descricao": i["descricao"],
                     "parcela": i.get("parcela"), "n_parcelas": i.get("n_parcelas"),
                     "original": i["valor"], "valor": reais(a["valor_centavos"]) if a else i["valor"],
                     "ajuste": {"id": a["id"], "escopo": "cenario" if a["cenario_id"] is not None else "geral",
-                               "mes_inicio": a["mes_inicio"], "mes_fim": a["mes_fim"]} if a else None})
+                               "mes_inicio": a["mes_inicio"], "mes_fim": a["mes_fim"]} if a else None,
+                    "ajuste_abaixo": {"id": b["id"], "escopo": "cenario" if b["cenario_id"] is not None else "geral",
+                                      "valor": reais(b["valor_centavos"])} if b else None})
             por_mes.append(lista)
         return por_mes
 
@@ -813,6 +817,8 @@ def salvar_ajuste(con, d):
     valor = centavos(exigir(d, "valor"))
     if valor < 0:
         raise ErroEntrada("Valor não pode ser negativo")
+    if valor == 0 and float(str(d["valor"]).replace(",", ".")) != 0:
+        raise ErroEntrada("Valor pequeno demais: abaixo de um centavo (use 0 para cancelar)")
     if valor > MAX_AJUSTE_CENTAVOS:
         raise ErroEntrada("Valor grande demais")
     inicio, fim = exigir_mes(d, "mes_inicio"), exigir_mes(d, "mes_fim", opcional=True)
