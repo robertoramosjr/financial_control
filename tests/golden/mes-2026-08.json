@@ -1,0 +1,111 @@
+{
+ "mes": "2026-08",
+ "avulsos": [],
+ "provisoes": [
+  {
+   "tipo": "prov",
+   "id": 2,
+   "descricao": "Mercado",
+   "categoria_id": 2,
+   "categoria": "Alimentação",
+   "provisionado": 1200.0,
+   "valor_do_mes": false,
+   "gasto": 0.0,
+   "disponivel": 1200.0,
+   "estouro": 0.0,
+   "fechado": true,
+   "valor": 0.0
+  },
+  {
+   "tipo": "prov",
+   "id": 1,
+   "descricao": "Saídas",
+   "categoria_id": 6,
+   "categoria": "Lazer",
+   "provisionado": 600.0,
+   "valor_do_mes": false,
+   "gasto": 0.0,
+   "disponivel": 600.0,
+   "estouro": 0.0,
+   "fechado": true,
+   "valor": 0.0
+  }
+ ],
+ "recorrencias": [
+  {
+   "tipo": "rec",
+   "id": 1,
+   "descricao": "Aluguel",
+   "data": "2026-08-05",
+   "valor": 1500.0,
+   "categoria_id": 1,
+   "categoria": "Moradia",
+   "pago": false
+  },
+  {
+   "tipo": "rec",
+   "id": 3,
+   "descricao": "Curso de inglês",
+   "data": "2026-08-10",
+   "valor": 199.99,
+   "categoria_id": 5,
+   "categoria": "Educação",
+   "pago": false
+  },
+  {
+   "tipo": "rec",
+   "id": 5,
+   "descricao": "Internet",
+   "data": "2026-08-10",
+   "valor": 119.9,
+   "categoria_id": 1,
+   "categoria": "Moradia",
+   "pago": false
+  },
+  {
+   "tipo": "rec",
+   "id": 6,
+   "descricao": "Água",
+   "data": "2026-08-10",
+   "valor": 60.0,
+   "categoria_id": 1,
+   "categoria": "Moradia",
+   "pago": false
+  },
+  {
+   "tipo": "rec",
+   "id": 2,
+   "descricao": "Netflix",
+   "data": "2026-08-31",
+   "valor": 55.9,
+   "categoria_id": 7,
+   "categoria": "Assinaturas",
+   "pago": false
+  }
+ ],
+ "parcelas": [],
+ "totais": {
+  "avulsos": 0,
+  "provisoes": 0.0,
+  "recorrencias": 1935.79,
+  "parcelas": 0,
+  "despesas": 1935.79,
+  "entradas": 8000.0,
+  "saldo": 6064.21,
+  "a_pagar": 1935.79
+ },
+ "por_categoria": [
+  [
+   "Moradia",
+   1679.9
+  ],
+  [
+   "Educação",
+   199.99
+  ],
+  [
+   "Assinaturas",
+   55.9
+  ]
+ ]
+}

@@ -1,0 +1,122 @@
+{
+ "mes": "2027-04",
+ "avulsos": [],
+ "provisoes": [
+  {
+   "tipo": "prov",
+   "id": 2,
+   "descricao": "Mercado",
+   "categoria_id": 2,
+   "categoria": "Alimentação",
+   "provisionado": 1200.0,
+   "valor_do_mes": false,
+   "gasto": 0.0,
+   "disponivel": 1200.0,
+   "estouro": 0.0,
+   "fechado": false,
+   "valor": 1200.0
+  },
+  {
+   "tipo": "prov",
+   "id": 1,
+   "descricao": "Saídas",
+   "categoria_id": 6,
+   "categoria": "Lazer",
+   "provisionado": 600.0,
+   "valor_do_mes": false,
+   "gasto": 0.0,
+   "disponivel": 600.0,
+   "estouro": 0.0,
+   "fechado": false,
+   "valor": 600.0
+  }
+ ],
+ "recorrencias": [
+  {
+   "tipo": "rec",
+   "id": 1,
+   "descricao": "Aluguel",
+   "data": "2027-04-05",
+   "valor": 1500.0,
+   "categoria_id": 1,
+   "categoria": "Moradia",
+   "pago": false
+  },
+  {
+   "tipo": "rec",
+   "id": 5,
+   "descricao": "Internet",
+   "data": "2027-04-10",
+   "valor": 119.9,
+   "categoria_id": 1,
+   "categoria": "Moradia",
+   "pago": false
+  },
+  {
+   "tipo": "rec",
+   "id": 6,
+   "descricao": "Água",
+   "data": "2027-04-10",
+   "valor": 60.0,
+   "categoria_id": 1,
+   "categoria": "Moradia",
+   "pago": false
+  },
+  {
+   "tipo": "rec",
+   "id": 4,
+   "descricao": "Academia",
+   "data": "2027-04-15",
+   "valor": 89.9,
+   "categoria_id": 4,
+   "categoria": "Saúde",
+   "pago": false
+  }
+ ],
+ "parcelas": [
+  {
+   "tipo": "parc",
+   "id": 1,
+   "descricao": "Notebook",
+   "parcela": 8,
+   "n_parcelas": 12,
+   "data": "2027-04-20",
+   "valor": 250.0,
+   "categoria_id": 9,
+   "categoria": "Outros",
+   "pago": false
+  }
+ ],
+ "totais": {
+  "avulsos": 0,
+  "provisoes": 1800.0,
+  "recorrencias": 1769.8,
+  "parcelas": 250.0,
+  "despesas": 3819.8,
+  "entradas": 8500.0,
+  "saldo": 4680.2,
+  "a_pagar": 3819.8
+ },
+ "por_categoria": [
+  [
+   "Moradia",
+   1679.9
+  ],
+  [
+   "Alimentação",
+   1200.0
+  ],
+  [
+   "Lazer",
+   600.0
+  ],
+  [
+   "Outros",
+   250.0
+  ],
+  [
+   "Saúde",
+   89.9
+  ]
+ ]
+}

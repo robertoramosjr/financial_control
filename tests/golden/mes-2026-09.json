@@ -1,0 +1,128 @@
+{
+ "mes": "2026-09",
+ "avulsos": [],
+ "provisoes": [
+  {
+   "tipo": "prov",
+   "id": 2,
+   "descricao": "Mercado",
+   "categoria_id": 2,
+   "categoria": "Alimentação",
+   "provisionado": 1200.0,
+   "valor_do_mes": false,
+   "gasto": 0.0,
+   "disponivel": 1200.0,
+   "estouro": 0.0,
+   "fechado": true,
+   "valor": 0.0
+  },
+  {
+   "tipo": "prov",
+   "id": 1,
+   "descricao": "Saídas",
+   "categoria_id": 6,
+   "categoria": "Lazer",
+   "provisionado": 600.0,
+   "valor_do_mes": false,
+   "gasto": 0.0,
+   "disponivel": 600.0,
+   "estouro": 0.0,
+   "fechado": true,
+   "valor": 0.0
+  }
+ ],
+ "recorrencias": [
+  {
+   "tipo": "rec",
+   "id": 1,
+   "descricao": "Aluguel",
+   "data": "2026-09-05",
+   "valor": 1500.0,
+   "categoria_id": 1,
+   "categoria": "Moradia",
+   "pago": false
+  },
+  {
+   "tipo": "rec",
+   "id": 3,
+   "descricao": "Curso de inglês",
+   "data": "2026-09-10",
+   "valor": 199.99,
+   "categoria_id": 5,
+   "categoria": "Educação",
+   "pago": false
+  },
+  {
+   "tipo": "rec",
+   "id": 5,
+   "descricao": "Internet",
+   "data": "2026-09-10",
+   "valor": 119.9,
+   "categoria_id": 1,
+   "categoria": "Moradia",
+   "pago": false
+  },
+  {
+   "tipo": "rec",
+   "id": 6,
+   "descricao": "Água",
+   "data": "2026-09-10",
+   "valor": 60.0,
+   "categoria_id": 1,
+   "categoria": "Moradia",
+   "pago": false
+  },
+  {
+   "tipo": "rec",
+   "id": 2,
+   "descricao": "Netflix",
+   "data": "2026-09-30",
+   "valor": 55.9,
+   "categoria_id": 7,
+   "categoria": "Assinaturas",
+   "pago": false
+  }
+ ],
+ "parcelas": [
+  {
+   "tipo": "parc",
+   "id": 1,
+   "descricao": "Notebook",
+   "parcela": 1,
+   "n_parcelas": 12,
+   "data": "2026-09-20",
+   "valor": 250.0,
+   "categoria_id": 9,
+   "categoria": "Outros",
+   "pago": false
+  }
+ ],
+ "totais": {
+  "avulsos": 0,
+  "provisoes": 0.0,
+  "recorrencias": 1935.79,
+  "parcelas": 250.0,
+  "despesas": 2185.79,
+  "entradas": 8000.0,
+  "saldo": 5814.21,
+  "a_pagar": 2185.79
+ },
+ "por_categoria": [
+  [
+   "Moradia",
+   1679.9
+  ],
+  [
+   "Outros",
+   250.0
+  ],
+  [
+   "Educação",
+   199.99
+  ],
+  [
+   "Assinaturas",
+   55.9
+  ]
+ ]
+}

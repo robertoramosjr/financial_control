@@ -1,0 +1,159 @@
+{
+ "mes": "2026-10",
+ "avulsos": [
+  {
+   "tipo": "avulso",
+   "id": 2,
+   "descricao": "Jantar",
+   "data": null,
+   "valor": 400.0,
+   "categoria_id": 6,
+   "categoria": "Lazer",
+   "pago": false,
+   "provisao_id": 1,
+   "provisao": "Saídas"
+  },
+  {
+   "tipo": "avulso",
+   "id": 1,
+   "descricao": "Mercado",
+   "data": "2026-10-03",
+   "valor": 350.9,
+   "categoria_id": 2,
+   "categoria": "Alimentação",
+   "pago": true,
+   "provisao_id": null,
+   "provisao": null
+  },
+  {
+   "tipo": "avulso",
+   "id": 3,
+   "descricao": "Cinema",
+   "data": "2026-10-12",
+   "valor": 300.0,
+   "categoria_id": 6,
+   "categoria": "Lazer",
+   "pago": false,
+   "provisao_id": 1,
+   "provisao": "Saídas"
+  }
+ ],
+ "provisoes": [
+  {
+   "tipo": "prov",
+   "id": 2,
+   "descricao": "Mercado",
+   "categoria_id": 2,
+   "categoria": "Alimentação",
+   "provisionado": 1200.0,
+   "valor_do_mes": false,
+   "gasto": 0.0,
+   "disponivel": 1200.0,
+   "estouro": 0.0,
+   "fechado": true,
+   "valor": 0.0
+  },
+  {
+   "tipo": "prov",
+   "id": 1,
+   "descricao": "Saídas",
+   "categoria_id": 6,
+   "categoria": "Lazer",
+   "provisionado": 600.0,
+   "valor_do_mes": false,
+   "gasto": 700.0,
+   "disponivel": 0.0,
+   "estouro": 100.0,
+   "fechado": true,
+   "valor": 0.0
+  }
+ ],
+ "recorrencias": [
+  {
+   "tipo": "rec",
+   "id": 1,
+   "descricao": "Aluguel",
+   "data": "2026-10-05",
+   "valor": 1500.0,
+   "categoria_id": 1,
+   "categoria": "Moradia",
+   "pago": true
+  },
+  {
+   "tipo": "rec",
+   "id": 5,
+   "descricao": "Internet",
+   "data": "2026-10-10",
+   "valor": 119.9,
+   "categoria_id": 1,
+   "categoria": "Moradia",
+   "pago": false
+  },
+  {
+   "tipo": "rec",
+   "id": 6,
+   "descricao": "Água",
+   "data": "2026-10-10",
+   "valor": 60.0,
+   "categoria_id": 1,
+   "categoria": "Moradia",
+   "pago": false
+  },
+  {
+   "tipo": "rec",
+   "id": 2,
+   "descricao": "Netflix",
+   "data": "2026-10-31",
+   "valor": 55.9,
+   "categoria_id": 7,
+   "categoria": "Assinaturas",
+   "pago": false
+  }
+ ],
+ "parcelas": [
+  {
+   "tipo": "parc",
+   "id": 1,
+   "descricao": "Notebook",
+   "parcela": 2,
+   "n_parcelas": 12,
+   "data": "2026-10-20",
+   "valor": 250.0,
+   "categoria_id": 9,
+   "categoria": "Outros",
+   "pago": true
+  }
+ ],
+ "totais": {
+  "avulsos": 1050.9,
+  "provisoes": 0.0,
+  "recorrencias": 1735.8,
+  "parcelas": 250.0,
+  "despesas": 3036.7,
+  "entradas": 8000.0,
+  "saldo": 4963.3,
+  "a_pagar": 935.8
+ },
+ "por_categoria": [
+  [
+   "Moradia",
+   1679.9
+  ],
+  [
+   "Lazer",
+   700.0
+  ],
+  [
+   "Alimentação",
+   350.9
+  ],
+  [
+   "Outros",
+   250.0
+  ],
+  [
+   "Assinaturas",
+   55.9
+  ]
+ ]
+}

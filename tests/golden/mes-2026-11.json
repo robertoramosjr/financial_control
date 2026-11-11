@@ -1,0 +1,239 @@
+{
+ "mes": "2026-11",
+ "avulsos": [
+  {
+   "tipo": "avulso",
+   "id": 7,
+   "descricao": "Farmácia",
+   "data": null,
+   "valor": 45.9,
+   "categoria_id": 4,
+   "categoria": "Saúde",
+   "pago": false,
+   "provisao_id": null,
+   "provisao": null
+  },
+  {
+   "tipo": "avulso",
+   "id": 6,
+   "descricao": "Feira",
+   "data": "2026-11-02",
+   "valor": 1300.0,
+   "categoria_id": 2,
+   "categoria": "Alimentação",
+   "pago": false,
+   "provisao_id": 2,
+   "provisao": "Mercado"
+  },
+  {
+   "tipo": "avulso",
+   "id": 8,
+   "descricao": "Presente",
+   "data": "2026-11-02",
+   "valor": 80.0,
+   "categoria_id": 9,
+   "categoria": "Outros",
+   "pago": true,
+   "provisao_id": null,
+   "provisao": null
+  },
+  {
+   "tipo": "avulso",
+   "id": 4,
+   "descricao": "Pizza",
+   "data": "2026-11-08",
+   "valor": 150.0,
+   "categoria_id": 6,
+   "categoria": "Lazer",
+   "pago": false,
+   "provisao_id": 1,
+   "provisao": "Saídas"
+  },
+  {
+   "tipo": "avulso",
+   "id": 5,
+   "descricao": "Cinema",
+   "data": "2026-11-09",
+   "valor": 100.0,
+   "categoria_id": 6,
+   "categoria": "Lazer",
+   "pago": true,
+   "provisao_id": 1,
+   "provisao": "Saídas"
+  }
+ ],
+ "provisoes": [
+  {
+   "tipo": "prov",
+   "id": 4,
+   "descricao": "Cabelo",
+   "categoria_id": 9,
+   "categoria": "Outros",
+   "provisionado": 100.0,
+   "valor_do_mes": false,
+   "gasto": 0.0,
+   "disponivel": 100.0,
+   "estouro": 0.0,
+   "fechado": false,
+   "valor": 100.0
+  },
+  {
+   "tipo": "prov",
+   "id": 2,
+   "descricao": "Mercado",
+   "categoria_id": 2,
+   "categoria": "Alimentação",
+   "provisionado": 1200.0,
+   "valor_do_mes": false,
+   "gasto": 1300.0,
+   "disponivel": 0.0,
+   "estouro": 100.0,
+   "fechado": false,
+   "valor": 0.0
+  },
+  {
+   "tipo": "prov",
+   "id": 1,
+   "descricao": "Saídas",
+   "categoria_id": 6,
+   "categoria": "Lazer",
+   "provisionado": 450.0,
+   "valor_do_mes": true,
+   "gasto": 250.0,
+   "disponivel": 200.0,
+   "estouro": 0.0,
+   "fechado": false,
+   "valor": 200.0
+  },
+  {
+   "tipo": "prov",
+   "id": 3,
+   "descricao": "Viagem",
+   "categoria_id": 6,
+   "categoria": "Lazer",
+   "provisionado": 800.0,
+   "valor_do_mes": true,
+   "gasto": 0.0,
+   "disponivel": 800.0,
+   "estouro": 0.0,
+   "fechado": false,
+   "valor": 800.0
+  }
+ ],
+ "recorrencias": [
+  {
+   "tipo": "rec",
+   "id": 1,
+   "descricao": "Aluguel",
+   "data": "2026-11-05",
+   "valor": 1500.0,
+   "categoria_id": 1,
+   "categoria": "Moradia",
+   "pago": true
+  },
+  {
+   "tipo": "rec",
+   "id": 5,
+   "descricao": "Internet",
+   "data": "2026-11-10",
+   "valor": 119.9,
+   "categoria_id": 1,
+   "categoria": "Moradia",
+   "pago": false
+  },
+  {
+   "tipo": "rec",
+   "id": 6,
+   "descricao": "Água",
+   "data": "2026-11-10",
+   "valor": 60.0,
+   "categoria_id": 1,
+   "categoria": "Moradia",
+   "pago": false
+  },
+  {
+   "tipo": "rec",
+   "id": 2,
+   "descricao": "Netflix",
+   "data": "2026-11-30",
+   "valor": 55.9,
+   "categoria_id": 7,
+   "categoria": "Assinaturas",
+   "pago": true
+  }
+ ],
+ "parcelas": [
+  {
+   "tipo": "parc",
+   "id": 4,
+   "descricao": "geladeira",
+   "parcela": 1,
+   "n_parcelas": 5,
+   "data": "2026-11-05",
+   "valor": 299.0,
+   "categoria_id": 1,
+   "categoria": "Moradia",
+   "pago": false
+  },
+  {
+   "tipo": "parc",
+   "id": 3,
+   "descricao": "Sofá",
+   "parcela": 1,
+   "n_parcelas": 3,
+   "data": "2026-11-05",
+   "valor": 433.33,
+   "categoria_id": 1,
+   "categoria": "Moradia",
+   "pago": false
+  },
+  {
+   "tipo": "parc",
+   "id": 1,
+   "descricao": "Notebook",
+   "parcela": 3,
+   "n_parcelas": 12,
+   "data": "2026-11-20",
+   "valor": 250.0,
+   "categoria_id": 9,
+   "categoria": "Outros",
+   "pago": false
+  }
+ ],
+ "totais": {
+  "avulsos": 1675.9,
+  "provisoes": 1100.0,
+  "recorrencias": 1735.8,
+  "parcelas": 982.33,
+  "despesas": 5494.03,
+  "entradas": 8500.0,
+  "saldo": 3005.97,
+  "a_pagar": 3758.13
+ },
+ "por_categoria": [
+  [
+   "Moradia",
+   2412.23
+  ],
+  [
+   "Alimentação",
+   1300.0
+  ],
+  [
+   "Lazer",
+   1250.0
+  ],
+  [
+   "Outros",
+   430.0
+  ],
+  [
+   "Assinaturas",
+   55.9
+  ],
+  [
+   "Saúde",
+   45.9
+  ]
+ ]
+}

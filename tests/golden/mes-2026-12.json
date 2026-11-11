@@ -1,0 +1,171 @@
+{
+ "mes": "2026-12",
+ "avulsos": [
+  {
+   "tipo": "avulso",
+   "id": 10,
+   "descricao": "Mercado",
+   "data": "2026-12-01",
+   "valor": 300.0,
+   "categoria_id": 2,
+   "categoria": "Alimentação",
+   "pago": false,
+   "provisao_id": 2,
+   "provisao": "Mercado"
+  },
+  {
+   "tipo": "avulso",
+   "id": 9,
+   "descricao": "Show",
+   "data": "2026-12-20",
+   "valor": 200.0,
+   "categoria_id": 6,
+   "categoria": "Lazer",
+   "pago": false,
+   "provisao_id": 1,
+   "provisao": "Saídas"
+  }
+ ],
+ "provisoes": [
+  {
+   "tipo": "prov",
+   "id": 2,
+   "descricao": "Mercado",
+   "categoria_id": 2,
+   "categoria": "Alimentação",
+   "provisionado": 1200.0,
+   "valor_do_mes": false,
+   "gasto": 300.0,
+   "disponivel": 900.0,
+   "estouro": 0.0,
+   "fechado": false,
+   "valor": 900.0
+  },
+  {
+   "tipo": "prov",
+   "id": 1,
+   "descricao": "Saídas",
+   "categoria_id": 6,
+   "categoria": "Lazer",
+   "provisionado": 0.0,
+   "valor_do_mes": true,
+   "gasto": 200.0,
+   "disponivel": 0.0,
+   "estouro": 200.0,
+   "fechado": false,
+   "valor": 0.0
+  }
+ ],
+ "recorrencias": [
+  {
+   "tipo": "rec",
+   "id": 1,
+   "descricao": "Aluguel",
+   "data": "2026-12-05",
+   "valor": 1500.0,
+   "categoria_id": 1,
+   "categoria": "Moradia",
+   "pago": false
+  },
+  {
+   "tipo": "rec",
+   "id": 5,
+   "descricao": "Internet",
+   "data": "2026-12-10",
+   "valor": 119.9,
+   "categoria_id": 1,
+   "categoria": "Moradia",
+   "pago": false
+  },
+  {
+   "tipo": "rec",
+   "id": 6,
+   "descricao": "Água",
+   "data": "2026-12-10",
+   "valor": 60.0,
+   "categoria_id": 1,
+   "categoria": "Moradia",
+   "pago": false
+  },
+  {
+   "tipo": "rec",
+   "id": 2,
+   "descricao": "Netflix",
+   "data": "2026-12-31",
+   "valor": 55.9,
+   "categoria_id": 7,
+   "categoria": "Assinaturas",
+   "pago": false
+  }
+ ],
+ "parcelas": [
+  {
+   "tipo": "parc",
+   "id": 4,
+   "descricao": "geladeira",
+   "parcela": 2,
+   "n_parcelas": 5,
+   "data": "2026-12-05",
+   "valor": 299.0,
+   "categoria_id": 1,
+   "categoria": "Moradia",
+   "pago": false
+  },
+  {
+   "tipo": "parc",
+   "id": 3,
+   "descricao": "Sofá",
+   "parcela": 2,
+   "n_parcelas": 3,
+   "data": "2026-12-05",
+   "valor": 433.33,
+   "categoria_id": 1,
+   "categoria": "Moradia",
+   "pago": false
+  },
+  {
+   "tipo": "parc",
+   "id": 1,
+   "descricao": "Notebook",
+   "parcela": 4,
+   "n_parcelas": 12,
+   "data": "2026-12-20",
+   "valor": 250.0,
+   "categoria_id": 9,
+   "categoria": "Outros",
+   "pago": false
+  }
+ ],
+ "totais": {
+  "avulsos": 500.0,
+  "provisoes": 900.0,
+  "recorrencias": 1735.8,
+  "parcelas": 982.33,
+  "despesas": 4118.13,
+  "entradas": 8000.0,
+  "saldo": 3881.87,
+  "a_pagar": 4118.13
+ },
+ "por_categoria": [
+  [
+   "Moradia",
+   2412.23
+  ],
+  [
+   "Alimentação",
+   1200.0
+  ],
+  [
+   "Outros",
+   250.0
+  ],
+  [
+   "Lazer",
+   200.0
+  ],
+  [
+   "Assinaturas",
+   55.9
+  ]
+ ]
+}
