@@ -4,5 +4,11 @@ backups/
 *.zip
 __pycache__/
 
+# Cloudflare / Node
+node_modules/
+.wrangler/
+.dev.vars
+dados-export.sql
+
 # Mockups do brainstorming
 .superpowers/
