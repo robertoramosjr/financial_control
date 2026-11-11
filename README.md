@@ -62,6 +62,11 @@ mudar de propósito, rode `npm run golden` e confira o diff.
    `npx wrangler d1 execute controle-financeiro --remote --file u.sql`.
    **As senhas são novas:** o hash do Python usa mais iterações do que a Cloudflare aceita.
 6. `npx wrangler deploy`, abra a URL `*.workers.dev` e confira Mês, Resumo, Projeções e Provisões.
+   **Confira o login em produção:** entre e saia umas 5 vezes e olhe os logs do Worker (painel → o Worker →
+   *Logs*). Conferir a senha (PBKDF2, 100.000 iterações) gasta uns 10 ms de CPU, que é o limite do plano
+   gratuito; se aparecer erro 1102 ("CPU time limit exceeded") ou o login falhar, as saídas são o plano
+   *Workers Paid* (US$ 5/mês) ou reduzir `ITERACOES` em `src/auth.ts` e `scripts/criar-usuario.mjs` e recadastrar
+   as senhas. Isso não foi possível testar fora da Cloudflare.
 7. Deploy automático: no painel da Cloudflare, *Workers & Pages* → o Worker → *Settings* → *Builds* → *Connect*,
    repositório `financial_control`, branch `main`, build `npm ci`, deploy `npx wrangler deploy`.
 
@@ -69,11 +74,13 @@ mudar de propósito, rode `npm run golden` e confira o diff.
 
 O backup automático de 6 em 6 horas do Python **deixa de existir**. No lugar:
 
-- **Time Travel do D1:** volta o banco a qualquer instante dos últimos 30 dias:
-  `npx wrangler d1 time-travel info controle-financeiro` e
+- **Time Travel do D1:** volta o banco a qualquer instante dos **últimos 7 dias no plano gratuito** (30 dias no
+  Workers Paid): `npx wrangler d1 time-travel info controle-financeiro` e
   `npx wrangler d1 time-travel restore controle-financeiro --timestamp=AAAA-MM-DDTHH:MM:SSZ`.
+  Um erro percebido depois disso não tem volta por aqui.
 - **Cópia manual:** `npx wrangler d1 export controle-financeiro --remote --output backup.sql`
-  (guarde fora do repositório: tem seus dados financeiros).
+  (guarde fora do repositório: tem seus dados financeiros). Como o Python guardava 30 cópias diárias sozinho e
+  aqui nada roda sozinho, rode isto de vez em quando (por exemplo uma vez por mês e antes de mexer em muita coisa).
 
 ### Limites do plano gratuito que moldaram o código
 

@@ -77,13 +77,24 @@ export async function usuarioDaSessao(db: D1Database, token: string | null): Pro
   return r ? r.nome : null;
 }
 
-async function loginBloqueado(db: D1Database, ip: string): Promise<boolean> {
-  await db.prepare("DELETE FROM falhas_login WHERE quando < ?").bind(Date.now() / 1000 - JANELA_SEGUNDOS).run();
-  const [porIp, geral] = await db.batch<{ n: number }>([
-    db.prepare("SELECT COUNT(*) AS n FROM falhas_login WHERE ip = ?").bind(ip),
-    db.prepare("SELECT COUNT(*) AS n FROM falhas_login"),
-  ]);
-  return porIp.results[0].n >= LIMITE_IP || geral.results[0].n >= LIMITE_GERAL;
+/**
+ * Reserva uma tentativa de login ANTES de conferir a senha, numa única instrução (conferir e gravar em passos
+ * separados deixaria uma rajada de requisições simultâneas passar toda pelo limite). Devolve o id da reserva,
+ * ou null se o IP ou o total já estourou o limite. A reserva fica gravada como falha e só é apagada se a senha
+ * estiver certa.
+ */
+async function reservarTentativa(db: D1Database, ip: string): Promise<number | null> {
+  const agora = Date.now() / 1000;
+  await db.prepare("DELETE FROM falhas_login WHERE quando < ?").bind(agora - JANELA_SEGUNDOS).run();
+  const r = await db
+    .prepare(
+      `INSERT INTO falhas_login (ip, quando)
+       SELECT ?, ? WHERE (SELECT COUNT(*) FROM falhas_login WHERE ip = ?) < ?
+                     AND (SELECT COUNT(*) FROM falhas_login) < ?`,
+    )
+    .bind(ip, agora, ip, LIMITE_IP, LIMITE_GERAL)
+    .run();
+  return r.meta.changes === 0 ? null : r.meta.last_row_id;
 }
 
 /** Devolve o token novo se usuário e senha conferem, senão null. */
@@ -119,14 +130,13 @@ export async function tratarLogin(req: Request, env: Env): Promise<Response | nu
   if (pathname === "/api/login" && req.method === "POST") {
     const d = await lerJson(req);
     const ip = req.headers.get("CF-Connecting-IP") ?? "";
-    if (await loginBloqueado(env.DB, ip)) {
+    const reserva = await reservarTentativa(env.DB, ip);
+    if (reserva === null) {
       return resposta({ erro: "Muitas tentativas erradas. Espere 15 minutos." }, 429);
     }
     const novo = await fazerLogin(env.DB, d);
-    if (!novo) {
-      await env.DB.prepare("INSERT INTO falhas_login (ip, quando) VALUES (?, ?)").bind(ip, Date.now() / 1000).run();
-      return resposta({ erro: "Usuário ou senha incorretos" }, 401);
-    }
+    if (!novo) return resposta({ erro: "Usuário ou senha incorretos" }, 401); // a reserva vira a falha registrada
+    await env.DB.prepare("DELETE FROM falhas_login WHERE rowid = ?").bind(reserva).run();
     return resposta({ ok: true }, 200, cookieSessao(novo, SESSAO_DIAS * 86400));
   }
 

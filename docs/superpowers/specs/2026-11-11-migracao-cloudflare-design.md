@@ -26,6 +26,14 @@ atualize sozinho a cada push na branch `main`.
   do Python usam 600.000. Por isso as senhas são recadastradas (`scripts/criar-usuario.mjs`) e `conferirSenha`
   devolve `false`, nunca erro, para hashes com mais de 100.000 iterações. O runtime local dos testes **não**
   aplica esse limite, então nenhum teste local o prova; confirme no primeiro deploy (login com a senha nova).
+  **Risco aberto:** 100.000 iterações custam cerca de 10 ms de CPU (medido no Node e no workerd local), que é o
+  limite do plano gratuito. Em produção isso pode virar erro 1102 no login, a única rota sem contorno. O README
+  manda conferir nos logs logo após o primeiro deploy e nomeia as saídas (Workers Paid ou menos iterações).
+- **Login contra rajadas:** a tentativa é reservada numa única instrução SQL antes de conferir a senha
+  (`reservarTentativa` em `src/auth.ts`); conferir e gravar em passos separados deixava 60 requisições simultâneas
+  passarem pelo limite de 10 por IP (achado da revisão final, com teste em `auth-concorrencia.test.ts`).
+- **Backup:** Time Travel do D1 guarda 7 dias no plano gratuito (30 no pago) e não há backup automático em arquivo;
+  a rotina de `wrangler d1 export` é manual.
 - **D1 gratuito: 50 consultas por requisição** (e 5 milhões de linhas lidas por dia). O Python fazia ~5 consultas
   por mês e o resumo anual ~60. Por isso as regras de `src/mes.ts` são funções puras sobre um retrato dos dados
   carregado de uma vez (`carregarDados`, 8 consultas numa `db.batch`), e a projeção carrega 12 num batch só.
