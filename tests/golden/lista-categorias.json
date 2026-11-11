@@ -1,0 +1,56 @@
+[
+ {
+  "id": 1,
+  "nome": "Moradia",
+  "ordem": 0,
+  "usos": 5
+ },
+ {
+  "id": 2,
+  "nome": "Alimentação",
+  "ordem": 1,
+  "usos": 4
+ },
+ {
+  "id": 3,
+  "nome": "Transporte",
+  "ordem": 2,
+  "usos": 0
+ },
+ {
+  "id": 4,
+  "nome": "Saúde",
+  "ordem": 3,
+  "usos": 2
+ },
+ {
+  "id": 5,
+  "nome": "Educação",
+  "ordem": 4,
+  "usos": 2
+ },
+ {
+  "id": 6,
+  "nome": "Lazer",
+  "ordem": 5,
+  "usos": 8
+ },
+ {
+  "id": 7,
+  "nome": "Assinaturas",
+  "ordem": 6,
+  "usos": 1
+ },
+ {
+  "id": 8,
+  "nome": "Vestuário",
+  "ordem": 7,
+  "usos": 0
+ },
+ {
+  "id": 9,
+  "nome": "Outros",
+  "ordem": 8,
+  "usos": 4
+ }
+]

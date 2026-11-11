@@ -1,0 +1,68 @@
+[
+ {
+  "id": 4,
+  "descricao": "Academia",
+  "dia": 15,
+  "valor": 89.9,
+  "categoria_id": 4,
+  "categoria": "Saúde",
+  "inicio": "2027-01",
+  "fim": null,
+  "ativa": false
+ },
+ {
+  "id": 1,
+  "descricao": "Aluguel",
+  "dia": 5,
+  "valor": 1500.0,
+  "categoria_id": 1,
+  "categoria": "Moradia",
+  "inicio": "2026-01",
+  "fim": null,
+  "ativa": true
+ },
+ {
+  "id": 5,
+  "descricao": "Internet",
+  "dia": 10,
+  "valor": 119.9,
+  "categoria_id": 1,
+  "categoria": "Moradia",
+  "inicio": "2026-01",
+  "fim": null,
+  "ativa": true
+ },
+ {
+  "id": 2,
+  "descricao": "Netflix",
+  "dia": 31,
+  "valor": 55.9,
+  "categoria_id": 7,
+  "categoria": "Assinaturas",
+  "inicio": "2026-03",
+  "fim": "2026-12",
+  "ativa": true
+ },
+ {
+  "id": 6,
+  "descricao": "Água",
+  "dia": 10,
+  "valor": 60.0,
+  "categoria_id": 1,
+  "categoria": "Moradia",
+  "inicio": "2026-01",
+  "fim": null,
+  "ativa": true
+ },
+ {
+  "id": 3,
+  "descricao": "Curso de inglês",
+  "dia": 10,
+  "valor": 199.99,
+  "categoria_id": 5,
+  "categoria": "Educação",
+  "inicio": "2026-06",
+  "fim": "2026-09",
+  "ativa": false
+ }
+]

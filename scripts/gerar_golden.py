@@ -6,6 +6,8 @@ com "hoje" fixo em 2026-11-11, e grava em tests/golden/:
   semente.sql            INSERTs do banco de teste (o Worker carrega isto no D1 de teste)
   mes-AAAA-MM.json       resposta de visao_mes para 2026-01 .. 2027-12
   resumo-AAAA.json       resposta de resumo_ano para 2026 e 2027
+  entradas-AAAA.json     resposta de entradas_ano para 2026 e 2027
+  lista-*.json           listagens de categorias, recorrências, parcelamentos e provisões
 
 Rodar de novo só quando o app.py mudar de comportamento:  python3 scripts/gerar_golden.py
 """
@@ -119,6 +121,11 @@ def main():
                     mes = f"{ano}-{m:02d}"
                     gravar_json(f"mes-{mes}.json", app.visao_mes(con, mes, HOJE_MES))
                 gravar_json(f"resumo-{ano}.json", app.resumo_ano(con, ano))
+                gravar_json(f"entradas-{ano}.json", app.entradas_ano(con, ano))
+            gravar_json("lista-categorias.json", app.listar_categorias(con))
+            gravar_json("lista-recorrencias.json", app.listar_recorrencias(con))
+            gravar_json("lista-parcelamentos.json", app.listar_parcelamentos(con))
+            gravar_json("lista-provisoes.json", app.listar_provisoes(con))
     print("Golden gerado em", SAIDA.relative_to(RAIZ))
 
 

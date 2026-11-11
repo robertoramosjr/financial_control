@@ -26,7 +26,7 @@ export default {
             ? Object.fromEntries([...new URL(req.url).searchParams].filter(([, v]) => v !== "").reverse())
             : await lerJson(req);
         const res = await fn(env.DB, achou[1] ?? null, corpo);
-        return resposta(req.method === "GET" ? res : { ok: true, id: res });
+        return resposta(req.method === "GET" ? res : { ok: true, id: res ?? null });
       }
       return resposta({ erro: "Rota não encontrada" }, 404);
     } catch (e) {

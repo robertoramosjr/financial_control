@@ -24,8 +24,11 @@ export async function lerJson(req: Request): Promise<Corpo> {
   return dados as Corpo;
 }
 
+/** Valor máximo aceito em provisões e ajustes (R$ 10 bilhões: acima disso é digitação errada). */
+export const MAX_AJUSTE_CENTAVOS = 10 ** 12;
+
 /** Como o repr() do Python mostraria o valor (usado nas mensagens de erro). */
-function repr(v: unknown): string {
+export function repr(v: unknown): string {
   if (v === null || v === undefined) return "None";
   if (v === true) return "True";
   if (v === false) return "False";

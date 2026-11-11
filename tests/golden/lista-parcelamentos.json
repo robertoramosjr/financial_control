@@ -1,0 +1,58 @@
+[
+ {
+  "id": 3,
+  "descricao": "Sofá",
+  "primeira_parcela": "2026-11-05",
+  "valor": 433.33,
+  "n_parcelas": 3,
+  "categoria_id": 1,
+  "categoria": "Moradia",
+  "ultimo_mes": "2027-01",
+  "parcela_atual": 1,
+  "situacao": "em_andamento",
+  "valor_total": 1299.99,
+  "restante_apos_mes": 866.66
+ },
+ {
+  "id": 4,
+  "descricao": "geladeira",
+  "primeira_parcela": "2026-11-05",
+  "valor": 299.0,
+  "n_parcelas": 5,
+  "categoria_id": 1,
+  "categoria": "Moradia",
+  "ultimo_mes": "2027-03",
+  "parcela_atual": 1,
+  "situacao": "em_andamento",
+  "valor_total": 1495.0,
+  "restante_apos_mes": 1196.0
+ },
+ {
+  "id": 1,
+  "descricao": "Notebook",
+  "primeira_parcela": "2026-09-20",
+  "valor": 250.0,
+  "n_parcelas": 12,
+  "categoria_id": 9,
+  "categoria": "Outros",
+  "ultimo_mes": "2027-08",
+  "parcela_atual": 3,
+  "situacao": "em_andamento",
+  "valor_total": 3000.0,
+  "restante_apos_mes": 2250.0
+ },
+ {
+  "id": 2,
+  "descricao": "Celular",
+  "primeira_parcela": "2026-01-31",
+  "valor": 199.9,
+  "n_parcelas": 6,
+  "categoria_id": 9,
+  "categoria": "Outros",
+  "ultimo_mes": "2026-06",
+  "parcela_atual": null,
+  "situacao": "quitado",
+  "valor_total": 1199.4,
+  "restante_apos_mes": 0.0
+ }
+]
