@@ -9,6 +9,10 @@ node_modules/
 .wrangler/
 .dev.vars
 dados-export.sql
+# SQL gerado pelo README com senhas (hash) e dados financeiros
+/usuario.sql
+/u.sql
+/backup.sql
 
 # Mockups do brainstorming
 .superpowers/
