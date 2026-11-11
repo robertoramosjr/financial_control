@@ -1,0 +1,1019 @@
+{
+ "inicio": "2026-11",
+ "meses": [
+  "2026-11",
+  "2026-12",
+  "2027-01",
+  "2027-02",
+  "2027-03",
+  "2027-04",
+  "2027-05",
+  "2027-06",
+  "2027-07",
+  "2027-08",
+  "2027-09",
+  "2027-10"
+ ],
+ "entradas": [
+  {
+   "valor": 8500.0,
+   "origem": "real"
+  },
+  {
+   "valor": 8000.0,
+   "origem": "real"
+  },
+  {
+   "valor": 8500.0,
+   "origem": "real"
+  },
+  {
+   "valor": 8800.0,
+   "origem": "real"
+  },
+  {
+   "valor": 8500.0,
+   "origem": "real"
+  },
+  {
+   "valor": 8500.0,
+   "origem": "real"
+  },
+  {
+   "valor": 8500.0,
+   "origem": "real"
+  },
+  {
+   "valor": 8500.0,
+   "origem": "real"
+  },
+  {
+   "valor": 0.0,
+   "origem": "vazia"
+  },
+  {
+   "valor": 0.0,
+   "origem": "vazia"
+  },
+  {
+   "valor": 0.0,
+   "origem": "vazia"
+  },
+  {
+   "valor": 0.0,
+   "origem": "vazia"
+  }
+ ],
+ "base": {
+  "recorrencias": [
+   1735.8,
+   1735.8,
+   1769.8,
+   1769.8,
+   1769.8,
+   1769.8,
+   1769.8,
+   1769.8,
+   1769.8,
+   1769.8,
+   1769.8,
+   1769.8
+  ],
+  "parcelas": [
+   982.33,
+   982.33,
+   982.33,
+   549.0,
+   549.0,
+   250.0,
+   250.0,
+   250.0,
+   250.0,
+   250.0,
+   0,
+   0
+  ],
+  "avulsos": [
+   1675.9,
+   500.0,
+   500.0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0
+  ],
+  "provisoes": [
+   1100.0,
+   900.0,
+   1800.0,
+   1800.0,
+   1800.0,
+   1800.0,
+   1800.0,
+   1800.0,
+   600.0,
+   600.0,
+   600.0,
+   600.0
+  ]
+ },
+ "previstas": [],
+ "cenarios": [
+  {
+   "id": null,
+   "nome": "Sem a compra",
+   "contas": [],
+   "base": {
+    "recorrencias": [
+     1735.8,
+     1735.8,
+     1769.8,
+     1769.8,
+     1769.8,
+     1769.8,
+     1769.8,
+     1769.8,
+     1769.8,
+     1769.8,
+     1769.8,
+     1769.8
+    ],
+    "parcelas": [
+     982.33,
+     982.33,
+     982.33,
+     549.0,
+     549.0,
+     250.0,
+     250.0,
+     250.0,
+     250.0,
+     250.0,
+     0,
+     0
+    ]
+   },
+   "itens": [
+    [
+     {
+      "tipo": "rec",
+      "id": 1,
+      "descricao": "Aluguel",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 1500.0,
+      "valor": 1500.0,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "rec",
+      "id": 5,
+      "descricao": "Internet",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 119.9,
+      "valor": 119.9,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "rec",
+      "id": 6,
+      "descricao": "Água",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 60.0,
+      "valor": 60.0,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "rec",
+      "id": 2,
+      "descricao": "Netflix",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 55.9,
+      "valor": 55.9,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "parc",
+      "id": 4,
+      "descricao": "geladeira",
+      "parcela": 1,
+      "n_parcelas": 5,
+      "original": 299.0,
+      "valor": 299.0,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "parc",
+      "id": 3,
+      "descricao": "Sofá",
+      "parcela": 1,
+      "n_parcelas": 3,
+      "original": 433.33,
+      "valor": 433.33,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "parc",
+      "id": 1,
+      "descricao": "Notebook",
+      "parcela": 3,
+      "n_parcelas": 12,
+      "original": 250.0,
+      "valor": 250.0,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     }
+    ],
+    [
+     {
+      "tipo": "rec",
+      "id": 1,
+      "descricao": "Aluguel",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 1500.0,
+      "valor": 1500.0,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "rec",
+      "id": 5,
+      "descricao": "Internet",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 119.9,
+      "valor": 119.9,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "rec",
+      "id": 6,
+      "descricao": "Água",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 60.0,
+      "valor": 60.0,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "rec",
+      "id": 2,
+      "descricao": "Netflix",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 55.9,
+      "valor": 55.9,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "parc",
+      "id": 4,
+      "descricao": "geladeira",
+      "parcela": 2,
+      "n_parcelas": 5,
+      "original": 299.0,
+      "valor": 299.0,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "parc",
+      "id": 3,
+      "descricao": "Sofá",
+      "parcela": 2,
+      "n_parcelas": 3,
+      "original": 433.33,
+      "valor": 433.33,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "parc",
+      "id": 1,
+      "descricao": "Notebook",
+      "parcela": 4,
+      "n_parcelas": 12,
+      "original": 250.0,
+      "valor": 250.0,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     }
+    ],
+    [
+     {
+      "tipo": "rec",
+      "id": 1,
+      "descricao": "Aluguel",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 1500.0,
+      "valor": 1500.0,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "rec",
+      "id": 5,
+      "descricao": "Internet",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 119.9,
+      "valor": 119.9,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "rec",
+      "id": 6,
+      "descricao": "Água",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 60.0,
+      "valor": 60.0,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "rec",
+      "id": 4,
+      "descricao": "Academia",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 89.9,
+      "valor": 89.9,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "parc",
+      "id": 4,
+      "descricao": "geladeira",
+      "parcela": 3,
+      "n_parcelas": 5,
+      "original": 299.0,
+      "valor": 299.0,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "parc",
+      "id": 3,
+      "descricao": "Sofá",
+      "parcela": 3,
+      "n_parcelas": 3,
+      "original": 433.33,
+      "valor": 433.33,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "parc",
+      "id": 1,
+      "descricao": "Notebook",
+      "parcela": 5,
+      "n_parcelas": 12,
+      "original": 250.0,
+      "valor": 250.0,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     }
+    ],
+    [
+     {
+      "tipo": "rec",
+      "id": 1,
+      "descricao": "Aluguel",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 1500.0,
+      "valor": 1500.0,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "rec",
+      "id": 5,
+      "descricao": "Internet",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 119.9,
+      "valor": 119.9,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "rec",
+      "id": 6,
+      "descricao": "Água",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 60.0,
+      "valor": 60.0,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "rec",
+      "id": 4,
+      "descricao": "Academia",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 89.9,
+      "valor": 89.9,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "parc",
+      "id": 4,
+      "descricao": "geladeira",
+      "parcela": 4,
+      "n_parcelas": 5,
+      "original": 299.0,
+      "valor": 299.0,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "parc",
+      "id": 1,
+      "descricao": "Notebook",
+      "parcela": 6,
+      "n_parcelas": 12,
+      "original": 250.0,
+      "valor": 250.0,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     }
+    ],
+    [
+     {
+      "tipo": "rec",
+      "id": 1,
+      "descricao": "Aluguel",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 1500.0,
+      "valor": 1500.0,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "rec",
+      "id": 5,
+      "descricao": "Internet",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 119.9,
+      "valor": 119.9,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "rec",
+      "id": 6,
+      "descricao": "Água",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 60.0,
+      "valor": 60.0,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "rec",
+      "id": 4,
+      "descricao": "Academia",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 89.9,
+      "valor": 89.9,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "parc",
+      "id": 4,
+      "descricao": "geladeira",
+      "parcela": 5,
+      "n_parcelas": 5,
+      "original": 299.0,
+      "valor": 299.0,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "parc",
+      "id": 1,
+      "descricao": "Notebook",
+      "parcela": 7,
+      "n_parcelas": 12,
+      "original": 250.0,
+      "valor": 250.0,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     }
+    ],
+    [
+     {
+      "tipo": "rec",
+      "id": 1,
+      "descricao": "Aluguel",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 1500.0,
+      "valor": 1500.0,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "rec",
+      "id": 5,
+      "descricao": "Internet",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 119.9,
+      "valor": 119.9,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "rec",
+      "id": 6,
+      "descricao": "Água",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 60.0,
+      "valor": 60.0,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "rec",
+      "id": 4,
+      "descricao": "Academia",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 89.9,
+      "valor": 89.9,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "parc",
+      "id": 1,
+      "descricao": "Notebook",
+      "parcela": 8,
+      "n_parcelas": 12,
+      "original": 250.0,
+      "valor": 250.0,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     }
+    ],
+    [
+     {
+      "tipo": "rec",
+      "id": 1,
+      "descricao": "Aluguel",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 1500.0,
+      "valor": 1500.0,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "rec",
+      "id": 5,
+      "descricao": "Internet",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 119.9,
+      "valor": 119.9,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "rec",
+      "id": 6,
+      "descricao": "Água",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 60.0,
+      "valor": 60.0,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "rec",
+      "id": 4,
+      "descricao": "Academia",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 89.9,
+      "valor": 89.9,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "parc",
+      "id": 1,
+      "descricao": "Notebook",
+      "parcela": 9,
+      "n_parcelas": 12,
+      "original": 250.0,
+      "valor": 250.0,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     }
+    ],
+    [
+     {
+      "tipo": "rec",
+      "id": 1,
+      "descricao": "Aluguel",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 1500.0,
+      "valor": 1500.0,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "rec",
+      "id": 5,
+      "descricao": "Internet",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 119.9,
+      "valor": 119.9,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "rec",
+      "id": 6,
+      "descricao": "Água",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 60.0,
+      "valor": 60.0,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "rec",
+      "id": 4,
+      "descricao": "Academia",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 89.9,
+      "valor": 89.9,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "parc",
+      "id": 1,
+      "descricao": "Notebook",
+      "parcela": 10,
+      "n_parcelas": 12,
+      "original": 250.0,
+      "valor": 250.0,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     }
+    ],
+    [
+     {
+      "tipo": "rec",
+      "id": 1,
+      "descricao": "Aluguel",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 1500.0,
+      "valor": 1500.0,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "rec",
+      "id": 5,
+      "descricao": "Internet",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 119.9,
+      "valor": 119.9,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "rec",
+      "id": 6,
+      "descricao": "Água",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 60.0,
+      "valor": 60.0,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "rec",
+      "id": 4,
+      "descricao": "Academia",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 89.9,
+      "valor": 89.9,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "parc",
+      "id": 1,
+      "descricao": "Notebook",
+      "parcela": 11,
+      "n_parcelas": 12,
+      "original": 250.0,
+      "valor": 250.0,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     }
+    ],
+    [
+     {
+      "tipo": "rec",
+      "id": 1,
+      "descricao": "Aluguel",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 1500.0,
+      "valor": 1500.0,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "rec",
+      "id": 5,
+      "descricao": "Internet",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 119.9,
+      "valor": 119.9,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "rec",
+      "id": 6,
+      "descricao": "Água",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 60.0,
+      "valor": 60.0,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "rec",
+      "id": 4,
+      "descricao": "Academia",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 89.9,
+      "valor": 89.9,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "parc",
+      "id": 1,
+      "descricao": "Notebook",
+      "parcela": 12,
+      "n_parcelas": 12,
+      "original": 250.0,
+      "valor": 250.0,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     }
+    ],
+    [
+     {
+      "tipo": "rec",
+      "id": 1,
+      "descricao": "Aluguel",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 1500.0,
+      "valor": 1500.0,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "rec",
+      "id": 5,
+      "descricao": "Internet",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 119.9,
+      "valor": 119.9,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "rec",
+      "id": 6,
+      "descricao": "Água",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 60.0,
+      "valor": 60.0,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "rec",
+      "id": 4,
+      "descricao": "Academia",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 89.9,
+      "valor": 89.9,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     }
+    ],
+    [
+     {
+      "tipo": "rec",
+      "id": 1,
+      "descricao": "Aluguel",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 1500.0,
+      "valor": 1500.0,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "rec",
+      "id": 5,
+      "descricao": "Internet",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 119.9,
+      "valor": 119.9,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "rec",
+      "id": 6,
+      "descricao": "Água",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 60.0,
+      "valor": 60.0,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     },
+     {
+      "tipo": "rec",
+      "id": 4,
+      "descricao": "Academia",
+      "parcela": null,
+      "n_parcelas": null,
+      "original": 89.9,
+      "valor": 89.9,
+      "ajuste": null,
+      "ajuste_abaixo": null
+     }
+    ]
+   ],
+   "despesas": [
+    5494.03,
+    4118.13,
+    5052.13,
+    4118.8,
+    4118.8,
+    3819.8,
+    3819.8,
+    3819.8,
+    2619.8,
+    2619.8,
+    2369.8,
+    2369.8
+   ],
+   "saldo": [
+    3005.97,
+    3881.87,
+    3447.87,
+    4681.2,
+    4381.2,
+    4680.2,
+    4680.2,
+    4680.2,
+    -2619.8,
+    -2619.8,
+    -2369.8,
+    -2369.8
+   ],
+   "acumulado": [
+    3005.97,
+    6887.84,
+    10335.71,
+    15016.91,
+    19398.11,
+    24078.31,
+    28758.51,
+    33438.71,
+    30818.91,
+    28199.11,
+    25829.31,
+    23459.51
+   ],
+   "comprometimento": [
+    0.6463564705882353,
+    0.51476625,
+    0.5943682352941176,
+    0.46804545454545454,
+    0.48456470588235295,
+    0.44938823529411764,
+    0.44938823529411764,
+    0.44938823529411764,
+    null,
+    null,
+    null,
+    null
+   ],
+   "sem_ajustes": {
+    "despesas": [
+     5494.03,
+     4118.13,
+     5052.13,
+     4118.8,
+     4118.8,
+     3819.8,
+     3819.8,
+     3819.8,
+     2619.8,
+     2619.8,
+     2369.8,
+     2369.8
+    ],
+    "saldo": [
+     3005.97,
+     3881.87,
+     3447.87,
+     4681.2,
+     4381.2,
+     4680.2,
+     4680.2,
+     4680.2,
+     -2619.8,
+     -2619.8,
+     -2369.8,
+     -2369.8
+    ],
+    "comprometimento": [
+     0.6463564705882353,
+     0.51476625,
+     0.5943682352941176,
+     0.46804545454545454,
+     0.48456470588235295,
+     0.44938823529411764,
+     0.44938823529411764,
+     0.44938823529411764,
+     null,
+     null,
+     null,
+     null
+    ]
+   },
+   "pior_mes": {
+    "mes": "2027-07",
+    "saldo": -2619.8
+   }
+  }
+ ]
+}

@@ -24,6 +24,9 @@ export async function lerJson(req: Request): Promise<Corpo> {
   return dados as Corpo;
 }
 
+/** round(x, 2) do Python para somas e saldos em reais. */
+export const arredonda2 = (x: number): number => Number(x.toFixed(2));
+
 /** Valor máximo aceito em provisões e ajustes (R$ 10 bilhões: acima disso é digitação errada). */
 export const MAX_AJUSTE_CENTAVOS = 10 ** 12;
 

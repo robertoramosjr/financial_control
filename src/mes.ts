@@ -3,7 +3,7 @@
 // O Python consultava o banco a cada pedaço; aqui as regras são funções puras sobre um retrato dos dados
 // (`Dados`) carregado de uma vez, porque o plano gratuito do D1 limita as consultas por requisição (50) e
 // o resumo anual precisaria de ~60. As respostas são iguais às do Python (tests/golden).
-import { dataNoMes, mesIdx, reais } from "./util";
+import { arredonda2, dataNoMes, mesIdx, reais } from "./util";
 
 type Linha = Record<string, any>;
 type Item = Record<string, any>;
@@ -19,8 +19,6 @@ export interface Dados {
   entradas: Linha[];
 }
 
-const arredonda2 = (x: number) => Number(x.toFixed(2));
-
 /** Mês corrente (AAAA-MM) no fuso de São Paulo. */
 export function mesAtual(agora: Date = new Date()): string {
   const partes = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit" })
@@ -29,19 +27,28 @@ export function mesAtual(agora: Date = new Date()): string {
   return `${partes.year}-${partes.month}`;
 }
 
+/** As 8 consultas de `carregarDados`, para quem quiser juntá-las a outras numa única db.batch. */
+export function consultasDados(db: D1Database, de: string, ate: string): D1PreparedStatement[] {
+  return [
+    db.prepare("SELECT id, nome FROM categorias ORDER BY ordem, nome"),
+    db.prepare("SELECT * FROM recorrencias ORDER BY id"),
+    db.prepare("SELECT * FROM parcelamentos ORDER BY id"),
+    db.prepare("SELECT * FROM provisoes ORDER BY id"),
+    db.prepare("SELECT * FROM provisao_meses WHERE mes BETWEEN ? AND ?").bind(de, ate),
+    db.prepare("SELECT * FROM lancamentos WHERE mes BETWEEN ? AND ? ORDER BY id").bind(de, ate),
+    db.prepare("SELECT * FROM pagamentos WHERE mes BETWEEN ? AND ?").bind(de, ate),
+    db.prepare("SELECT * FROM entradas WHERE mes BETWEEN ? AND ?").bind(de, ate),
+  ];
+}
+
 /** Carrega o que as regras precisam para os meses de `de` a `ate` (AAAA-MM, inclusive), em poucas consultas. */
 export async function carregarDados(db: D1Database, de: string, ate: string): Promise<Dados> {
-  const [categorias, recorrencias, parcelamentos, provisoes, provisaoMeses, lancamentos, pagamentos, entradas] =
-    await db.batch<Linha>([
-      db.prepare("SELECT id, nome FROM categorias ORDER BY ordem, nome"),
-      db.prepare("SELECT * FROM recorrencias ORDER BY id"),
-      db.prepare("SELECT * FROM parcelamentos ORDER BY id"),
-      db.prepare("SELECT * FROM provisoes ORDER BY id"),
-      db.prepare("SELECT * FROM provisao_meses WHERE mes BETWEEN ? AND ?").bind(de, ate),
-      db.prepare("SELECT * FROM lancamentos WHERE mes BETWEEN ? AND ? ORDER BY id").bind(de, ate),
-      db.prepare("SELECT * FROM pagamentos WHERE mes BETWEEN ? AND ?").bind(de, ate),
-      db.prepare("SELECT * FROM entradas WHERE mes BETWEEN ? AND ?").bind(de, ate),
-    ]);
+  return montarDados(await db.batch<Linha>(consultasDados(db, de, ate)));
+}
+
+/** Monta o retrato a partir dos 8 resultados de `consultasDados`, na mesma ordem. */
+export function montarDados(resultados: D1Result<Linha>[]): Dados {
+  const [categorias, recorrencias, parcelamentos, provisoes, provisaoMeses, lancamentos, pagamentos, entradas] = resultados;
   return {
     categorias: categorias.results as Dados["categorias"],
     recorrencias: recorrencias.results,

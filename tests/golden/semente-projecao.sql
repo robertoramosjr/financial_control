@@ -1,0 +1,15 @@
+INSERT INTO "projecao_entradas" VALUES('2026-12',900000);
+INSERT INTO "projecao_entradas" VALUES('2027-01',0);
+INSERT INTO "projecao_entradas" VALUES('2027-04',950000);
+INSERT INTO "cenarios" VALUES(1,'Notebook novo',0);
+INSERT INTO "cenarios" VALUES(2,'Viagem',1);
+INSERT INTO "projecao_contas" VALUES(1,1,'Notebook',600000,12,'2026-12');
+INSERT INTO "projecao_contas" VALUES(2,1,'Capa',10001,2,'2027-01');
+INSERT INTO "projecao_contas" VALUES(3,2,'Passagens',250000,5,'2027-02');
+INSERT INTO "projecao_contas" VALUES(4,NULL,'IPVA',300000,3,'2027-01');
+INSERT INTO "projecao_contas" VALUES(5,2,'Hotel',33333,7,'2026-11');
+INSERT INTO "projecao_ajustes" VALUES(1,NULL,'rec',1,'2026-12',NULL,180000,1);
+INSERT INTO "projecao_ajustes" VALUES(2,1,'rec',2,'2027-01','2027-03',0,2);
+INSERT INTO "projecao_ajustes" VALUES(3,2,'parc',1,'2026-12','2027-02',10000,3);
+INSERT INTO "projecao_ajustes" VALUES(4,NULL,'rec',1,'2027-01','2027-02',200000,4);
+INSERT INTO "projecao_ajustes" VALUES(5,1,'rec',1,'2027-02',NULL,170000,5);

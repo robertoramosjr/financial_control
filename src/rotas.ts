@@ -19,7 +19,17 @@ import {
   salvarRecorrencia,
   salvarValorMesProvisao,
 } from "./cadastros";
-import { resumoAno, visaoMes } from "./mes";
+import { mesAtual, resumoAno, visaoMes } from "./mes";
+import {
+  desfazerMesAjuste,
+  duplicarCenario,
+  projecao,
+  salvarAjuste,
+  salvarCenario,
+  salvarContaProjecao,
+  salvarContasProjecao,
+  salvarEntradaProjetada,
+} from "./projecao";
 import { exigirMes } from "./util";
 
 export type Rota = [metodo: string, padrao: RegExp, fn: (db: D1Database, id: string | null, corpo: any) => Promise<any>];
@@ -62,5 +72,17 @@ export const ROTAS: Rota[] = [
   ["POST", /^\/api\/fontes$/, (db, _, d) => salvarFonte(db, d)],
   ["PUT", /^\/api\/fontes\/(\d+)$/, (db, i, d) => salvarFonte(db, d, num(i))],
   ["DELETE", /^\/api\/fontes\/(\d+)$/, (db, i) => apagar(db, "fontes_renda", num(i))],
-  // As rotas /api/projecao/* entram na Task 6.
+
+  ["GET", /^\/api\/projecao$/, (db) => projecao(db, mesAtual())],
+  ["PUT", /^\/api\/projecao\/entradas$/, (db, _, d) => salvarEntradaProjetada(db, d)],
+  ["POST", /^\/api\/projecao\/cenarios$/, (db, _, d) => salvarCenario(db, d)],
+  ["PUT", /^\/api\/projecao\/cenarios\/(\d+)$/, (db, i, d) => salvarCenario(db, d, num(i))],
+  ["DELETE", /^\/api\/projecao\/cenarios\/(\d+)$/, (db, i) => apagar(db, "cenarios", num(i))],
+  ["POST", /^\/api\/projecao\/cenarios\/(\d+)\/duplicar$/, (db, i, d) => duplicarCenario(db, num(i), d)],
+  ["POST", /^\/api\/projecao\/contas$/, (db, _, d) => salvarContasProjecao(db, d)],
+  ["PUT", /^\/api\/projecao\/contas\/(\d+)$/, (db, i, d) => salvarContaProjecao(db, d, num(i))],
+  ["DELETE", /^\/api\/projecao\/contas\/(\d+)$/, (db, i) => apagar(db, "projecao_contas", num(i))],
+  ["POST", /^\/api\/projecao\/ajustes$/, (db, _, d) => salvarAjuste(db, d)],
+  ["DELETE", /^\/api\/projecao\/ajustes\/(\d+)$/, (db, i) => apagar(db, "projecao_ajustes", num(i))],
+  ["POST", /^\/api\/projecao\/ajustes\/(\d+)\/desfazer-mes$/, (db, i, d) => desfazerMesAjuste(db, num(i), d)],
 ];

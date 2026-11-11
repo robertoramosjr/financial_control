@@ -8,6 +8,8 @@ com "hoje" fixo em 2026-11-11, e grava em tests/golden/:
   resumo-AAAA.json       resposta de resumo_ano para 2026 e 2027
   entradas-AAAA.json     resposta de entradas_ano para 2026 e 2027
   lista-*.json           listagens de categorias, recorrências, parcelamentos e provisões
+  semente-projecao.sql   INSERTs dos dados de projeção (aplicados por cima de semente.sql)
+  projecao-*.json        resposta de projecao(): base (sem cenários), completa e com outro mês de partida
 
 Rodar de novo só quando o app.py mudar de comportamento:  python3 scripts/gerar_golden.py
 """
@@ -30,6 +32,10 @@ HOJE_MES = "2026-11"
 ORDEM_TABELAS = ["categorias", "fontes_renda", "provisoes", "provisao_meses", "recorrencias", "parcelamentos",
                  "lancamentos", "pagamentos", "entradas", "projecao_entradas", "cenarios", "projecao_contas",
                  "projecao_ajustes"]
+
+
+# Dados de projeção ficam numa segunda semente, aplicada por cima do núcleo.
+TABELAS_PROJECAO = ["projecao_entradas", "cenarios", "projecao_contas", "projecao_ajustes"]
 
 
 class DataFixa(date):
@@ -90,14 +96,37 @@ def semear(con):
     con.executemany("INSERT INTO entradas (fonte_id, mes, valor_centavos) VALUES (?,?,?)", entradas)
 
 
-def sql_de_insercao(con):
-    """INSERTs do banco, agrupados por tabela na ordem das chaves estrangeiras, uma instrução por linha."""
+def semear_projecao(con):
+    """Dados de projeção, aplicados por cima do núcleo: entrada digitada (inclusive zero), 2 cenários, contas com
+    parcela que não divide certo, e ajustes de todo tipo (geral, de cenário, pausa, sobreposição por ordem)."""
+    con.executemany("INSERT INTO projecao_entradas (mes, valor_centavos) VALUES (?,?)", [
+        ("2026-12", 900000), ("2027-01", 0), ("2027-04", 950000),
+    ])
+    con.executemany("INSERT INTO cenarios (id, nome, ordem) VALUES (?,?,?)", [(1, "Notebook novo", 0), (2, "Viagem", 1)])
+    con.executemany("INSERT INTO projecao_contas (id, cenario_id, descricao, total_centavos, n_parcelas, primeira_parcela) VALUES (?,?,?,?,?,?)", [
+        (1, 1, "Notebook", 600000, 12, "2026-12"),
+        (2, 1, "Capa", 10001, 2, "2027-01"),
+        (3, 2, "Passagens", 250000, 5, "2027-02"),
+        (4, None, "IPVA", 300000, 3, "2027-01"),
+        (5, 2, "Hotel", 33333, 7, "2026-11"),
+    ])
+    con.executemany("INSERT INTO projecao_ajustes (id, cenario_id, tipo, ref_id, mes_inicio, mes_fim, valor_centavos, ordem) VALUES (?,?,?,?,?,?,?,?)", [
+        (1, None, "rec", 1, "2026-12", None, 180000, 1),
+        (2, 1, "rec", 2, "2027-01", "2027-03", 0, 2),
+        (3, 2, "parc", 1, "2026-12", "2027-02", 10000, 3),
+        (4, None, "rec", 1, "2027-01", "2027-02", 200000, 4),
+        (5, 1, "rec", 1, "2027-02", None, 170000, 5),
+    ])
+
+
+def sql_de_insercao(con, tabelas):
+    """INSERTs das tabelas pedidas, na ordem das chaves estrangeiras, uma instrução por linha."""
     por_tabela = {}
     for linha in con.iterdump():
         achou = re.match(r'INSERT INTO "(\w+)"', linha)
         if achou:
             por_tabela.setdefault(achou.group(1), []).append(linha)
-    return "\n".join(l for t in ORDEM_TABELAS for l in por_tabela.get(t, [])) + "\n"
+    return "\n".join(l for t in tabelas for l in por_tabela.get(t, [])) + "\n"
 
 
 def gravar_json(nome, dados):
@@ -115,7 +144,9 @@ def main():
         app.iniciar_banco()
         with app.conectar() as con:
             semear(con)
-            (SAIDA / "semente.sql").write_text(sql_de_insercao(con), encoding="utf-8")
+            nucleo = [t for t in ORDEM_TABELAS if t not in TABELAS_PROJECAO]
+            (SAIDA / "semente.sql").write_text(sql_de_insercao(con, nucleo), encoding="utf-8")
+            gravar_json("projecao-base.json", app.projecao(con, HOJE_MES))   # só despesas reais, sem cenários
             for ano in (2026, 2027):
                 for m in range(1, 13):
                     mes = f"{ano}-{m:02d}"
@@ -126,6 +157,10 @@ def main():
             gravar_json("lista-recorrencias.json", app.listar_recorrencias(con))
             gravar_json("lista-parcelamentos.json", app.listar_parcelamentos(con))
             gravar_json("lista-provisoes.json", app.listar_provisoes(con))
+            semear_projecao(con)
+            (SAIDA / "semente-projecao.sql").write_text(sql_de_insercao(con, TABELAS_PROJECAO), encoding="utf-8")
+            gravar_json("projecao-completa.json", app.projecao(con, HOJE_MES))
+            gravar_json("projecao-2026-03.json", app.projecao(con, "2026-03"))   # outro mês de partida: outros meses "fechados"
     print("Golden gerado em", SAIDA.relative_to(RAIZ))
 
 

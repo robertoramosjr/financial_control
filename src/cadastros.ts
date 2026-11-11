@@ -25,7 +25,7 @@ const verdadeiro = (v: unknown): boolean =>
   Array.isArray(v) ? v.length > 0 : v !== null && typeof v === "object" ? Object.keys(v).length > 0 : Boolean(v);
 
 /** Valor aceito pelo banco: undefined vira null, booleano vira 0/1, o resto que não é número ou texto é recusado. */
-function paraBanco(v: unknown): string | number | null {
+export function paraBanco(v: unknown): string | number | null {
   if (v === undefined || v === null) return null;
   if (typeof v === "boolean") return v ? 1 : 0;
   if (typeof v === "number" || typeof v === "string") return v;
@@ -37,12 +37,16 @@ function inteiro(v: unknown): number {
   return exigir({ v }, "v", "number");
 }
 
-function ehErroDoBanco(e: unknown, trecho: string): boolean {
+export function ehErroDoBanco(e: unknown, trecho: string): boolean {
   const mensagens = [(e as Error)?.message, ((e as Error)?.cause as Error | undefined)?.message];
   return mensagens.some((m) => typeof m === "string" && m.includes(trecho));
 }
 
-async function existe(db: D1Database, tabela: "provisoes" | "categorias", id: unknown): Promise<boolean> {
+export async function existe(
+  db: D1Database,
+  tabela: "provisoes" | "categorias" | "cenarios" | "recorrencias" | "parcelamentos",
+  id: unknown,
+): Promise<boolean> {
   return (await db.prepare(`SELECT 1 FROM ${tabela} WHERE id = ?`).bind(paraBanco(id)).first()) !== null;
 }
 
