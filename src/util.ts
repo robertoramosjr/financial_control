@@ -5,6 +5,25 @@ export class ErroEntrada extends Error {}
 
 type Corpo = Record<string, any>;
 
+const LIMITE_CORPO = 1_000_000;
+
+/** Lê o corpo como objeto JSON (vazio vira {}), com o limite de 1.000.000 de bytes do Python. */
+export async function lerJson(req: Request): Promise<Corpo> {
+  const grande = () => new ErroEntrada("Requisição grande demais");
+  if (Number(req.headers.get("Content-Length") ?? 0) > LIMITE_CORPO) throw grande();
+  const bytes = new Uint8Array(await req.arrayBuffer());
+  if (bytes.byteLength > LIMITE_CORPO) throw grande();
+  if (bytes.byteLength === 0) return {};
+  let dados: unknown;
+  try {
+    dados = JSON.parse(new TextDecoder().decode(bytes));
+  } catch {
+    throw new ErroEntrada("JSON inválido");
+  }
+  if (dados === null || typeof dados !== "object" || Array.isArray(dados)) throw new ErroEntrada("JSON inválido");
+  return dados as Corpo;
+}
+
 /** Como o repr() do Python mostraria o valor (usado nas mensagens de erro). */
 function repr(v: unknown): string {
   if (v === null || v === undefined) return "None";

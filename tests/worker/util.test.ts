@@ -9,6 +9,7 @@ import {
   exigirData,
   exigirMes,
   idxMes,
+  lerJson,
   mesIdx,
   reais,
   somarMeses,
@@ -140,5 +141,36 @@ describe("exigirCategoria", () => {
   it("recusa categoria inexistente ou ausente", async () => {
     await expect(exigirCategoria(env.DB, { categoria_id: 999 })).rejects.toThrow("Escolha uma categoria válida");
     await expect(exigirCategoria(env.DB, {})).rejects.toBeInstanceOf(ErroEntrada);
+  });
+});
+
+describe("lerJson", () => {
+  const req = (corpo?: string, headers: Record<string, string> = {}) =>
+    new Request("https://exemplo.test/x", { method: "POST", body: corpo, headers });
+
+  it("corpo vazio vira objeto vazio", async () => {
+    expect(await lerJson(req())).toEqual({});
+  });
+
+  it("lê um objeto JSON", async () => {
+    expect(await lerJson(req('{"a": 1}'))).toEqual({ a: 1 });
+  });
+
+  it("recusa JSON quebrado e o que não é objeto", async () => {
+    await expect(lerJson(req("{quebrado"))).rejects.toThrow("JSON inválido");
+    await expect(lerJson(req("[1, 2]"))).rejects.toThrow("JSON inválido");
+    await expect(lerJson(req("null"))).rejects.toThrow("JSON inválido");
+  });
+
+  it("recusa corpo acima de 1.000.000 de bytes, com ou sem Content-Length", async () => {
+    const grande = JSON.stringify({ x: "a".repeat(1_000_001) });
+    await expect(lerJson(req(grande))).rejects.toThrow("Requisição grande demais");
+    await expect(lerJson(req("{}", { "Content-Length": "1000001" }))).rejects.toThrow("Requisição grande demais");
+  });
+
+  it("aceita corpo de exatamente 1.000.000 de bytes", async () => {
+    const corpo = JSON.stringify({ x: "a".repeat(1_000_000 - 8) });
+    expect(corpo.length).toBe(1_000_000);
+    expect(Object.keys(await lerJson(req(corpo)))).toEqual(["x"]);
   });
 });
