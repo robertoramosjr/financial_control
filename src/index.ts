@@ -1,5 +1,5 @@
 import { tokenDaRequisicao, tratarLogin, usuarioDaSessao } from "./auth";
-import { resposta } from "./resposta";
+import { aplicarSeguranca, resposta } from "./resposta";
 import { ROTAS } from "./rotas";
 import { ErroEntrada, lerJson } from "./util";
 
@@ -11,8 +11,17 @@ export interface Env {
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const { pathname } = new URL(req.url);
-    // Normalmente a plataforma já serve static/ sozinha; isto cobre o que chegar até aqui.
-    if (!pathname.startsWith("/api/")) return env.ASSETS.fetch(req);
+    // Normalmente a plataforma serve static/ sozinha (com os cabeçalhos de static/_headers); isto cobre o que
+    // chegar ao Worker fora de /api/, com as mesmas regras do app.py.
+    if (!pathname.startsWith("/api/")) {
+      if (req.method !== "GET") return resposta({ erro: "Método não permitido" }, 405);
+      const arquivo = await env.ASSETS.fetch(req);
+      return new Response(arquivo.body, {
+        status: arquivo.status,
+        statusText: arquivo.statusText,
+        headers: aplicarSeguranca(new Headers(arquivo.headers), "no-cache"),
+      });
+    }
     try {
       const login = await tratarLogin(req, env);
       if (login) return login;

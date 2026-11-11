@@ -10,6 +10,7 @@ com "hoje" fixo em 2026-11-11, e grava em tests/golden/:
   lista-*.json           listagens de categorias, recorrências, parcelamentos e provisões
   semente-projecao.sql   INSERTs dos dados de projeção (aplicados por cima de semente.sql)
   projecao-*.json        resposta de projecao(): base (sem cenários), completa e com outro mês de partida
+  rotas.json             [método, padrão] de cada rota de ROTAS (o Worker precisa ter exatamente as mesmas)
 
 Rodar de novo só quando o app.py mudar de comportamento:  python3 scripts/gerar_golden.py
 """
@@ -138,6 +139,7 @@ def main():
     for antigo in SAIDA.glob("*.json"):
         antigo.unlink()
     app.date = DataFixa
+    gravar_json("rotas.json", [[m, p.pattern] for m, p, _ in app.ROTAS])
     with tempfile.TemporaryDirectory() as tmp:
         app.DB_PATH = Path(tmp) / "golden.db"
         app.BACKUPS = Path(tmp) / "backups"

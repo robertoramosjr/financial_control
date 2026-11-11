@@ -1,16 +1,24 @@
 // Teste de ponta a ponta da aba Projeções (Chrome headless via DevTools). Rodado por tests/test_e2e_projecoes.py.
-// Uso: node e2e_projecoes.js <porta-do-app> <dir-perfil-chrome> [tabela|completa|provisoes]   (env CDP_PORT: porta do DevTools)
+// (.cjs porque o package.json do projeto é "type": "module".)
+// Uso: node e2e_projecoes.cjs <porta-do-app> <dir-perfil-chrome> [tabela|completa|provisoes]   (env CDP_PORT: porta do DevTools)
 const { spawn } = require("child_process");
 const PORTA = process.argv[2], PERFIL = process.argv[3], FASE = process.argv[4] || "tabela";
 const CDP = process.env.CDP_PORT || "9334";
 const BASE = `http://localhost:${PORTA}`;
 const J = { "Content-Type": "application/json" };
-const api = (m, u, b) => fetch(BASE + u, { method: m, headers: J, body: b ? JSON.stringify(b) : undefined }).then((r) => r.json());
+// Contra o Worker (que sempre exige login), CF_SENHA faz o script entrar como "ana" e usar o cookie da sessão.
+let COOKIE = "";
+const api = (m, u, b) => fetch(BASE + u, { method: m, headers: COOKIE ? { ...J, Cookie: COOKIE } : J, body: b ? JSON.stringify(b) : undefined }).then((r) => r.json());
 const dorme = (ms) => new Promise((r) => setTimeout(r, ms));
 let falhas = 0;
 const check = (nome, ok, extra = "") => { console.log(`${ok ? "PASS" : "FAIL"}  ${nome}${ok ? "" : "  -> " + extra}`); if (!ok) falhas++; };
 
 (async () => {
+  if (process.env.CF_SENHA) {
+    const r = await fetch(BASE + "/api/login", { method: "POST", headers: J, body: JSON.stringify({ usuario: "ana", senha: process.env.CF_SENHA }) });
+    if (!r.ok) { console.log("FAIL  login no Worker  -> " + r.status); process.exit(1); }
+    COOKIE = r.headers.getSetCookie()[0].split(";")[0];
+  }
   const ch = spawn("google-chrome", ["--headless=new", "--no-sandbox", `--remote-debugging-port=${CDP}`, `--user-data-dir=${PERFIL}`, "about:blank"], { stdio: "ignore" });
   await dorme(2500);
   const tabs = await (await fetch(`http://localhost:${CDP}/json`)).json();
@@ -42,6 +50,10 @@ const check = (nome, ok, extra = "") => { console.log(`${ok ? "PASS" : "FAIL"}  
 
   await send("Page.enable");
   await send("Runtime.enable");
+  if (COOKIE) {
+    await send("Network.enable");
+    await send("Network.setCookie", { name: "sessao", value: COOKIE.split("=")[1], url: BASE });
+  }
   const escolher = (sel, v) => ev(`(()=>{const e=document.querySelector(${JSON.stringify(sel)});e.value=${JSON.stringify(String(v))};e.dispatchEvent(new Event("change",{bubbles:true}));return true})()`);
   const irPara = async (hash, cond) => { await ev(`document.querySelector("#conteudo").innerHTML = ""; location.hash = ${JSON.stringify(hash)}`); return esperar(cond); };
   const foto = async (nome) => {
