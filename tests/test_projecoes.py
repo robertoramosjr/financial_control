@@ -142,9 +142,9 @@ class TestProjecao(BancoTemporario):
         self.assertEqual(antes, depois)
 
 
-def chamar(metodo, caminho, corpo=None):
+def chamar(metodo, caminho, corpo=None, query=""):
     ler = (lambda: json.dumps(corpo).encode()) if corpo is not None else (lambda: b"")
-    r = app.tratar(app.Requisicao(metodo, caminho, "", None, ler, "127.0.0.1"))
+    r = app.tratar(app.Requisicao(metodo, caminho, query, None, ler, "127.0.0.1"))
     return r.status, json.loads(r.corpo)
 
 
@@ -511,6 +511,88 @@ class TestAjustesApi(BancoTemporario):
         with app.conectar() as con:
             n = lambda c: con.execute("SELECT COUNT(*) FROM projecao_ajustes WHERE cenario_id IS ?", (c,)).fetchone()[0]
             self.assertEqual((n(cid), n(r["id"]), n(None)), (1, 1, 1))
+
+
+
+class TestPeriodo(BancoTemporario):
+    def test_periodo_proprio_comeca_no_mes_escolhido_e_acumula_a_partir_dele(self):
+        with app.conectar() as con:
+            recorrencia(con, 1000)
+            entrada_digitada(con, "2027-02", 5000)
+            entrada_digitada(con, "2027-03", 5000)
+            p = app.projecao(con, "2027-02", 11, hoje=INICIO)
+        base = p["cenarios"][0]
+        self.assertEqual(p["meses"][0], "2027-02")
+        self.assertEqual(p["meses"][-1], "2027-12")
+        self.assertEqual(len(base["saldo"]), 11)
+        self.assertEqual(base["acumulado"][0], base["saldo"][0])
+        self.assertEqual(base["acumulado"][1], round(base["saldo"][0] + base["saldo"][1], 2))
+
+    def test_api_aceita_de_e_ate_alem_dos_12_meses(self):
+        status, p = chamar("GET", "/api/projecao", query="de=2027-02&ate=2028-06")
+        self.assertEqual(status, 200)
+        self.assertEqual(p["meses"][0], "2027-02")
+        self.assertEqual(p["meses"][-1], "2028-06")
+        self.assertEqual(len(p["meses"]), 17)
+
+    def test_api_sem_filtro_continua_12_meses_a_partir_do_mes_atual(self):
+        _, p = chamar("GET", "/api/projecao")
+        self.assertEqual(len(p["meses"]), 12)
+        self.assertEqual(p["meses"][0], app.date.today().isoformat()[:7])
+
+    def test_api_so_de_ou_so_ate_completa_o_outro_lado(self):
+        _, p = chamar("GET", "/api/projecao", query="de=2027-02")
+        self.assertEqual((p["meses"][0], len(p["meses"])), ("2027-02", 12))
+        atual = app.date.today().isoformat()[:7]
+        _, p = chamar("GET", "/api/projecao", query=f"ate={app.somar_meses(atual, 2)}")
+        self.assertEqual((p["meses"][0], len(p["meses"])), (atual, 3))
+
+    def test_api_recusa_periodo_invertido_longo_demais_ou_mal_escrito(self):
+        for q in ("de=2027-05&ate=2027-04", "de=2027-01&ate=2032-01", "de=fevereiro&ate=2027-12", "de=2027-01&ate=2027-13"):
+            status, r = chamar("GET", "/api/projecao", query=q)
+            self.assertEqual(status, 400, q)
+            self.assertIn("erro", r)
+
+    def test_periodo_de_60_meses_e_aceito(self):
+        status, p = chamar("GET", "/api/projecao", query="de=2027-01&ate=2031-12")
+        self.assertEqual((status, len(p["meses"])), (200, 60))
+
+
+class TestReset(BancoTemporario):
+    def popular(self):
+        with app.conectar() as con:
+            recorrencia(con, 1000)
+            entrada_real(con, INICIO, 4000)
+        cid = chamar("POST", "/api/projecao/cenarios", {"nome": "Notebook"})[1]["id"]
+        chamar("POST", "/api/projecao/contas", {"cenario_id": cid, "contas": [CONTA]})
+        chamar("POST", "/api/projecao/contas", {"cenario_id": None, "contas": [CONTA]})
+        chamar("PUT", "/api/projecao/entradas", {"mes": INICIO, "valor": "9000"})
+        with app.conectar() as con:
+            rec = con.execute("SELECT id FROM recorrencias").fetchone()["id"]
+        corpo = {"tipo": "rec", "ref_id": rec, "valor": "500", "mes_inicio": INICIO, "mes_fim": None,
+                 "escopo": "geral", "cenario_id": None}
+        self.assertEqual(chamar("POST", "/api/projecao/ajustes", corpo)[0], 200)
+
+    def test_reset_apaga_tudo_que_e_hipotetico(self):
+        self.popular()
+        for t in ("cenarios", "projecao_contas", "projecao_ajustes", "projecao_entradas"):
+            self.assertGreater(contagem(t), 0, t)
+        status, _ = chamar("POST", "/api/projecao/reset", {})
+        self.assertEqual(status, 200)
+        for t in ("cenarios", "projecao_contas", "projecao_ajustes", "projecao_entradas"):
+            self.assertEqual(contagem(t), 0, t)
+
+    def test_reset_preserva_os_dados_consolidados(self):
+        self.popular()
+        chamar("POST", "/api/projecao/reset", {})
+        self.assertEqual(contagem("recorrencias"), 1)
+        self.assertEqual(contagem("entradas"), 1)
+        _, p = chamar("GET", "/api/projecao")
+        self.assertEqual([c["nome"] for c in p["cenarios"]], ["Sem a compra"])
+        self.assertEqual(p["entradas"][0], {"valor": 4000.0, "origem": "real"})
+
+    def test_reset_sem_nada_a_apagar_nao_da_erro(self):
+        self.assertEqual(chamar("POST", "/api/projecao/reset", {})[0], 200)
 
 
 if __name__ == "__main__":

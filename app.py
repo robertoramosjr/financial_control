@@ -764,9 +764,28 @@ def ajuste_vigente(ajustes, tipo, ref_id, mes, cenario_id):
     return max(candidatos, key=lambda a: (a["cenario_id"] is not None, a["ordem"], a["id"]), default=None)
 
 
-def projecao(con, inicio, n_meses=12):
+MAX_MESES_PROJECAO = 60
+
+
+def periodo_da_projecao(q, hoje):
+    """(inicio, n_meses) a partir de ?de=AAAA-MM&ate=AAAA-MM; o lado que faltar é completado
+    (sem 'de': mês atual; sem 'ate': 12 meses a partir do 'de')."""
+    de = exigir_mes(q, "de", opcional=True) or hoje
+    ate = exigir_mes(q, "ate", opcional=True) or somar_meses(de, 11)
+    n = mes_idx(ate) - mes_idx(de) + 1
+    if n < 1:
+        raise ErroEntrada("O mês final deve ser igual ou posterior ao inicial")
+    if n > MAX_MESES_PROJECAO:
+        raise ErroEntrada(f"O período deve ter no máximo {MAX_MESES_PROJECAO} meses")
+    return de, n
+
+
+def projecao(con, inicio, n_meses=12, hoje=None):
+    """Projeta n_meses a partir de 'inicio'. 'hoje' (mês atual de verdade) é o que decide como as
+    provisões entram; por padrão é o próprio início."""
+    hoje = hoje or inicio
     meses = [somar_meses(inicio, i) for i in range(n_meses)]
-    vms = [visao_mes(con, m, hoje=inicio) for m in meses]
+    vms = [visao_mes(con, m, hoje=hoje) for m in meses]
     visoes = [v["totais"] for v in vms]
     ajustes = con.execute("SELECT * FROM projecao_ajustes ORDER BY id").fetchall()
     digitadas = {r["mes"]: r["valor_centavos"] for r in con.execute("SELECT mes, valor_centavos FROM projecao_entradas")}
@@ -835,6 +854,12 @@ def projecao(con, inicio, n_meses=12):
         cenarios.append(resultado(c["id"], c["nome"], contas))
     return {"inicio": inicio, "meses": meses, "entradas": entradas, "base": base,
             "previstas": previstas, "cenarios": cenarios}
+
+
+def resetar_projecoes(con):
+    """Apaga tudo que é hipotético na aba Projeções; os dados consolidados não são tocados."""
+    for tabela in ("projecao_ajustes", "projecao_contas", "cenarios", "projecao_entradas"):
+        con.execute(f"DELETE FROM {tabela}")
 
 
 def salvar_entrada_projetada(con, d):
@@ -1022,7 +1047,9 @@ ROTAS = [
 
     ("GET", r"/api/entradas/(\d{4})", lambda con, a, q: entradas_ano(con, int(a))),
     ("PUT", r"/api/entradas", lambda con, _, d: salvar_entrada(con, d)),
-    ("GET", r"/api/projecao", lambda con, _, q: projecao(con, date.today().isoformat()[:7])),
+    ("GET", r"/api/projecao", lambda con, _, q: projecao(
+        con, *periodo_da_projecao(q, date.today().isoformat()[:7]), hoje=date.today().isoformat()[:7])),
+    ("POST", r"/api/projecao/reset", lambda con, _, d: resetar_projecoes(con)),
     ("PUT", r"/api/projecao/entradas", lambda con, _, d: salvar_entrada_projetada(con, d)),
     ("POST", r"/api/projecao/cenarios", lambda con, _, d: salvar_cenario(con, d)),
     ("PUT", r"/api/projecao/cenarios/(\d+)", lambda con, i, d: salvar_cenario(con, d, int(i))),

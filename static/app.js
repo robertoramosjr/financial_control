@@ -22,7 +22,9 @@ const estado = {
   mostrarEncerradas: false,
   cenarioSel: null,   // aba Projeções: id do cenário aberto (null = "Sem a compra")
   modoGraf: "pct",    // aba Projeções: eixo do gráfico, "pct" (comprometimento) ou "saldo" (R$)
-  mesAberto: null,    // aba Projeções: índice (0-11) do mês cujo painel de despesas está aberto
+  projDe: null,       // aba Projeções: início do período filtrado (AAAA-MM); null = mês atual
+  projAte: null,      // aba Projeções: fim do período filtrado (AAAA-MM); null = 12 meses a partir do início
+  mesAberto: null,    // aba Projeções: índice (dentro do período) do mês cujo painel de despesas está aberto
   mostrarSemAjustes: false,   // aba Projeções: gráfico também com a versão de cada cenário sem ajustes
 };
 
@@ -895,7 +897,13 @@ function graficoProjecao(d, modo, selecionado, semAjustes = false) {
 }
 
 async function telaProjecoes() {
-  let d = await api("GET", "/api/projecao");
+  const consulta = () => {
+    const q = new URLSearchParams();
+    if (estado.projDe) q.set("de", estado.projDe);
+    if (estado.projAte) q.set("ate", estado.projAte);
+    return `/api/projecao${q.size ? `?${q}` : ""}`;
+  };
+  let d = await api("GET", consulta());
   let cen = d.cenarios.find((c) => c.id === estado.cenarioSel) || d.cenarios[0];
   estado.cenarioSel = cen.id;
   const ehBase = cen.id === null;
@@ -910,7 +918,13 @@ async function telaProjecoes() {
   $("#conteudo").innerHTML = `
     <div class="cabecalho">
       <strong style="font-size:18px">Projeções</strong><span class="espaco"></span>
+      <button class="perigo" id="bt-reset-proj">Resetar projeções</button>
       <button class="primario" id="bt-novo-cen">+ Cenário</button>
+    </div>
+    <div class="gerir-cen" id="proj-periodo">
+      <label>De <input type="month" id="proj-de" value="${d.meses[0]}"></label>
+      <label>Até <input type="month" id="proj-ate" value="${d.meses[d.meses.length - 1]}"></label>
+      ${estado.projDe || estado.projAte ? `<button id="bt-periodo-padrao">Próximos 12 meses</button>` : ""}
     </div>
     <div class="gerir-cen">
       <div class="filtros" id="proj-cenarios">${d.cenarios.map((c) =>
@@ -1021,7 +1035,7 @@ async function telaProjecoes() {
       if (Number.isNaN(v)) return aviso("Valor inválido", true);
       try {
         await api("PUT", "/api/projecao/entradas", { mes: d.meses[Number(inp.dataset.pm)], valor: v });
-        d = await api("GET", "/api/projecao");
+        d = await api("GET", consulta());
         pintar();
         aviso("Salvo");
       } catch (e) { aviso(e.message, true); }
@@ -1042,6 +1056,29 @@ async function telaProjecoes() {
     render();
   }));
   $("#bt-novo-cen").onclick = () => modalCenario(null);
+  const mudarPeriodo = (de, ate) => {
+    if (!de || !ate) return render();   // campo apagado: volta a mostrar o período atual
+    if (ate < de) { aviso("O mês final deve ser igual ou posterior ao inicial", true); return render(); }
+    const n = (Number(ate.slice(0, 4)) - Number(de.slice(0, 4))) * 12 + Number(ate.slice(5)) - Number(de.slice(5)) + 1;
+    if (n > 60) { aviso("O período deve ter no máximo 60 meses", true); return render(); }
+    estado.projDe = de; estado.projAte = ate; estado.mesAberto = null;
+    render();
+  };
+  $("#proj-de").onchange = (e) => mudarPeriodo(e.target.value, $("#proj-ate").value);
+  $("#proj-ate").onchange = (e) => mudarPeriodo($("#proj-de").value, e.target.value);
+  if ($("#bt-periodo-padrao")) $("#bt-periodo-padrao").onclick = () => {
+    estado.projDe = estado.projAte = estado.mesAberto = null;
+    render();
+  };
+  $("#bt-reset-proj").onclick = async () => {
+    if (!confirm("Apagar TODAS as projeções (cenários, contas previstas, ajustes e entradas digitadas)? Isso não pode ser desfeito.")) return;
+    try {
+      await api("POST", "/api/projecao/reset", {});
+      estado.cenarioSel = estado.projDe = estado.projAte = estado.mesAberto = null;
+      render();
+      aviso("Projeções resetadas");
+    } catch (e) { aviso(e.message, true); }
+  };
   if (!ehBase) {
     $("#bt-ren-cen").onclick = () => modalCenario(cen);
     $("#bt-dup-cen").onclick = async () => {

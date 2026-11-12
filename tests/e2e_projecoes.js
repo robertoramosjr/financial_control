@@ -323,6 +323,30 @@ const check = (nome, ok, extra = "") => { console.log(`${ok ? "PASS" : "FAIL"}  
 
   await faseProvisoes();
 
+  // período: filtro De/Até (inclusive além dos 12 meses) e botão de reset
+  const colunas = () => ev(`document.querySelectorAll("table.proj thead th .mes-btn").length`);
+  await irPara("#projecoes", `!!document.querySelector("#proj-de")`);
+  check("sem filtro: 12 meses e sem botão 'Próximos 12 meses'", (await colunas()) === 12 && (await ev(`!document.querySelector("#bt-periodo-padrao")`)));
+  const somar = (m, n) => { const [a, x] = m.split("-").map(Number); const d = new Date(a, x - 1 + n, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
+  await escolher("#proj-ate", somar(mes, 17)); await dorme(600);
+  check("até +17 meses: 18 colunas", await esperar(`document.querySelectorAll("table.proj thead th .mes-btn").length === 18`), String(await colunas()));
+  check("o filtro continua marcado nos campos", (await ev(`document.querySelector("#proj-ate").value`)) === somar(mes, 17));
+  await escolher("#proj-de", somar(mes, 3)); await dorme(600);
+  check("de +3 até +17: 15 colunas", await esperar(`document.querySelectorAll("table.proj thead th .mes-btn").length === 15`), String(await colunas()));
+  const acum0 = await ev(`document.querySelector('tr[data-linha="acumulado"] td[data-i="0"]').textContent`);
+  const saldo0 = await ev(`document.querySelector('tr[data-linha="saldo"] td[data-i="0"]').textContent`);
+  check("acumulado começa a somar no primeiro mês do período", acum0 === saldo0, `${acum0} vs ${saldo0}`);
+  await escolher("#proj-de", somar(mes, 20)); await dorme(600);
+  check("período invertido é recusado e mantém o anterior", (await colunas()) === 15 && (await ev(`document.querySelector("#proj-de").value`)) === somar(mes, 3), String(await colunas()));
+  await clicar("#bt-periodo-padrao");
+  check("'Próximos 12 meses' volta ao padrão", await esperar(`document.querySelectorAll("table.proj thead th .mes-btn").length === 12 && !document.querySelector("#bt-periodo-padrao")`));
+  await ev(`window.confirm = () => true`);
+  const cenariosAntes = (await api("GET", "/api/projecao")).cenarios.length;
+  await clicar("#bt-reset-proj");
+  check("reset: só sobra 'Sem a compra'", await esperar(`document.querySelectorAll("#proj-cenarios button").length === 1`), `antes: ${cenariosAntes}`);
+  const aposReset = await api("GET", "/api/projecao");
+  check("reset não mexe nas entradas reais", aposReset.entradas[0].origem === "real" && aposReset.entradas[0].valor === 9800, JSON.stringify(aposReset.entradas[0]));
+
   console.log(falhas ? `${falhas} falha(s)` : "tudo certo");
   ch.kill(); process.exit(falhas ? 1 : 0);
 })();
