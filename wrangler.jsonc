@@ -13,8 +13,8 @@
     {
       "binding": "DB",
       "database_name": "controle-financeiro",
-      // Troque pelo id real depois de `wrangler d1 create` (Task 9).
-      "database_id": "local-dev",
+      // Id do banco criado com `wrangler d1 create` (não é segredo).
+      "database_id": "5cf9e493-d29b-4f9d-ae24-b31577433b03",
       "migrations_dir": "migrations"
     }
   ]
