@@ -9,6 +9,9 @@ uso no computador e como referência: os testes de paridade garantem que o Worke
 
 Na aba Projeções, clicar no nome de um mês abre as despesas dele (recorrências e parcelas) e permite
 cortar, reduzir ou pausar uma delas só na projeção (nada real muda), para todos os cenários ou só um.
+Os campos De/Até escolhem o período projetado (até 60 meses, inclusive além dos 12 padrão; o
+Acumulado começa no primeiro mês escolhido). "Resetar projeções" apaga cenários, contas previstas,
+ajustes e entradas digitadas de uma vez, sem tocar nos dados reais.
 O gráfico pode mostrar cada cenário também sem os ajustes.
 
 Na aba Provisões você reserva um valor por mês para gastos variáveis (ex.: Saídas, R$ 600). Ao lançar uma

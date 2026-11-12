@@ -16,3 +16,7 @@ dados-export.sql
 
 # Mockups do brainstorming
 .superpowers/
+
+# Configuração local do Claude e material de referência
+.claude/
+Turbomole_Manual_8-0.md
