@@ -9,6 +9,7 @@ import {
   centavos,
   exigir,
   exigirMes,
+  mesIdx,
   reais,
   repr,
   somarMeses,
@@ -64,7 +65,22 @@ function ajusteVigente(ajustes: Linha[], tipo: string, refId: number, mes: strin
 
 const escopoDe = (a: Linha) => (a.cenario_id !== null ? "cenario" : "geral");
 
-export async function projecao(db: D1Database, inicio: string, nMeses = 12) {
+export const MAX_MESES_PROJECAO = 60;
+
+/** [início, nº de meses] a partir de ?de=AAAA-MM&ate=AAAA-MM; o lado que faltar é completado
+ *  (sem "de": mês atual; sem "ate": 12 meses a partir do "de"). */
+export function periodoDaProjecao(q: Corpo, hoje: string): [string, number] {
+  const de = exigirMes(q, "de", true) ?? hoje;
+  const ate = exigirMes(q, "ate", true) ?? somarMeses(de, 11);
+  const n = mesIdx(ate) - mesIdx(de) + 1;
+  if (n < 1) throw new ErroEntrada("O mês final deve ser igual ou posterior ao inicial");
+  if (n > MAX_MESES_PROJECAO) throw new ErroEntrada(`O período deve ter no máximo ${MAX_MESES_PROJECAO} meses`);
+  return [de, n];
+}
+
+/** Projeta `nMeses` a partir de `inicio`. `hoje` (mês atual de verdade) decide como as provisões entram;
+ *  por padrão é o próprio início. */
+export async function projecao(db: D1Database, inicio: string, nMeses = 12, hoje: string = inicio) {
   const meses = Array.from({ length: nMeses }, (_, i) => somarMeses(inicio, i));
   const resultados = await db.batch<Linha>([
     ...consultasDados(db, inicio, meses[nMeses - 1]),
@@ -79,7 +95,7 @@ export async function projecao(db: D1Database, inicio: string, nMeses = 12) {
   const todas = resultados[10].results;
   const cenariosDb = resultados[11].results;
 
-  const vms = meses.map((m) => montarVisaoMes(dados, m, inicio));
+  const vms = meses.map((m) => montarVisaoMes(dados, m, hoje));
   const visoes = vms.map((v) => v.totais);
   const entradas = meses.map((m, i) => {
     if (digitadas.has(m)) return { valor: reais(digitadas.get(m)!), origem: "digitada" };
@@ -163,6 +179,13 @@ export async function projecao(db: D1Database, inicio: string, nMeses = 12) {
 }
 
 // ---------------------------------------------------------------- entrada prevista
+
+/** Apaga tudo que é hipotético na aba Projeções; os dados consolidados não são tocados. */
+export async function resetarProjecoes(db: D1Database): Promise<void> {
+  await db.batch(
+    ["projecao_ajustes", "projecao_contas", "cenarios", "projecao_entradas"].map((t) => db.prepare(`DELETE FROM ${t}`)),
+  );
+}
 
 export async function salvarEntradaProjetada(db: D1Database, d: Corpo): Promise<void> {
   const mes = exigirMes(d, "mes") as string;

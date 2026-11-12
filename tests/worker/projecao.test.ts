@@ -2,6 +2,8 @@ import { env } from "cloudflare:workers";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { parcelaCentavos, projecao } from "../../src/projecao";
 import { chamar, entrar } from "./ajuda";
+import { mesAtual } from "../../src/mes";
+import { somarMeses } from "../../src/util";
 import { semear, semearProjecao } from "./semente";
 
 const arquivos = import.meta.glob("../golden/projecao-*.json", { eager: true, import: "default" }) as Record<string, any>;
@@ -276,5 +278,71 @@ describe("ajustes de projeção", () => {
       expect(await desfazer(2, "2027-13")).toEqual(erro("Mês inválido em mes: use AAAA-MM"));
       expect(await intervalo(2)).toEqual({ mes_inicio: "2027-01", mes_fim: "2027-03" });
     });
+  });
+});
+
+describe("período da projeção (De/Até)", () => {
+  it("projeta de fevereiro a dezembro e o acumulado começa no primeiro mês do período", async () => {
+    await semearProjecao(env.DB);
+    const p = await projecao(env.DB, "2027-02", 11, "2026-11");
+    const base = p.cenarios[0];
+    expect(p.meses[0]).toBe("2027-02");
+    expect(p.meses.at(-1)).toBe("2027-12");
+    expect(base.saldo).toHaveLength(11);
+    expect(base.acumulado[0]).toBe(base.saldo[0]);
+    expect(base.acumulado[1]).toBe(Math.round((base.saldo[0] + base.saldo[1]) * 100) / 100);
+  });
+
+  it("sem 'hoje' o início vale como hoje (resultado idêntico ao dos dados dourados)", async () => {
+    await semearProjecao(env.DB);
+    expect(await projecao(env.DB, "2026-11", 12, "2026-11")).toEqual(golden("projecao-completa"));
+  });
+
+  it("GET aceita de e ate, inclusive além dos 12 meses", async () => {
+    const r = await api("GET", "/api/projecao?de=2027-02&ate=2028-06");
+    expect(r.status).toBe(200);
+    expect(r.corpo.meses[0]).toBe("2027-02");
+    expect(r.corpo.meses.at(-1)).toBe("2028-06");
+    expect(r.corpo.meses).toHaveLength(17);
+  });
+
+  it("só 'de' ou só 'ate' completa o outro lado", async () => {
+    const a = await api("GET", "/api/projecao?de=2027-02");
+    expect([a.corpo.meses[0], a.corpo.meses.length]).toEqual(["2027-02", 12]);
+    const atual = mesAtual();
+    const b = await api("GET", `/api/projecao?ate=${somarMeses(atual, 2)}`);
+    expect([b.corpo.meses[0], b.corpo.meses.length]).toEqual([atual, 3]);
+  });
+
+  it("recusa período invertido, longo demais ou mal escrito", async () => {
+    const q = (s: string) => api("GET", `/api/projecao?${s}`);
+    expect(await q("de=2027-05&ate=2027-04")).toEqual(erro("O mês final deve ser igual ou posterior ao inicial"));
+    expect(await q("de=2027-01&ate=2032-01")).toEqual(erro("O período deve ter no máximo 60 meses"));
+    expect((await q("de=fevereiro&ate=2027-12")).status).toBe(400);
+    expect((await q("de=2027-01&ate=2027-13")).status).toBe(400);
+  });
+
+  it("60 meses é aceito", async () => {
+    const r = await api("GET", "/api/projecao?de=2027-01&ate=2031-12");
+    expect([r.status, r.corpo.meses.length]).toEqual([200, 60]);
+  });
+});
+
+describe("reset das projeções", () => {
+  const TABELAS_PROJECAO = ["cenarios", "projecao_contas", "projecao_ajustes", "projecao_entradas"];
+
+  it("apaga tudo que é hipotético e preserva os dados consolidados", async () => {
+    await semearProjecao(env.DB);
+    for (const t of TABELAS_PROJECAO) expect(await contar(t), t).toBeGreaterThan(0);
+    const reais = [await contar("recorrencias"), await contar("lancamentos"), await contar("entradas")];
+    expect(await api("POST", "/api/projecao/reset", {})).toEqual({ status: 200, corpo: { ok: true, id: null } });
+    for (const t of TABELAS_PROJECAO) expect(await contar(t), t).toBe(0);
+    expect([await contar("recorrencias"), await contar("lancamentos"), await contar("entradas")]).toEqual(reais);
+    const p = await api("GET", "/api/projecao");
+    expect(p.corpo.cenarios.map((c: any) => c.nome)).toEqual(["Sem a compra"]);
+  });
+
+  it("sem nada a apagar não dá erro", async () => {
+    expect((await api("POST", "/api/projecao/reset", {})).status).toBe(200);
   });
 });

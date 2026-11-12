@@ -23,7 +23,9 @@ import { mesAtual, resumoAno, visaoMes } from "./mes";
 import {
   desfazerMesAjuste,
   duplicarCenario,
+  periodoDaProjecao,
   projecao,
+  resetarProjecoes,
   salvarAjuste,
   salvarCenario,
   salvarContaProjecao,
@@ -73,7 +75,8 @@ export const ROTAS: Rota[] = [
   ["PUT", /^\/api\/fontes\/(\d+)$/, (db, i, d) => salvarFonte(db, d, num(i))],
   ["DELETE", /^\/api\/fontes\/(\d+)$/, (db, i) => apagar(db, "fontes_renda", num(i))],
 
-  ["GET", /^\/api\/projecao$/, (db) => projecao(db, mesAtual())],
+  ["GET", /^\/api\/projecao$/, (db, _, q) => projecao(db, ...periodoDaProjecao(q, mesAtual()), mesAtual())],
+  ["POST", /^\/api\/projecao\/reset$/, (db) => resetarProjecoes(db)],
   ["PUT", /^\/api\/projecao\/entradas$/, (db, _, d) => salvarEntradaProjetada(db, d)],
   ["POST", /^\/api\/projecao\/cenarios$/, (db, _, d) => salvarCenario(db, d)],
   ["PUT", /^\/api\/projecao\/cenarios\/(\d+)$/, (db, i, d) => salvarCenario(db, d, num(i))],

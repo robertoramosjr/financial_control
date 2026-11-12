@@ -31,8 +31,8 @@ describe("tabela de rotas", () => {
   const doWorker = ROTAS.map(([metodo, padrao]) => `${metodo} ${padrao.source.replaceAll("\\/", "/")}`);
   const doPython = (rotasPython as [string, string][]).map(([metodo, padrao]) => `${metodo} ${padrao}`);
 
-  it("tem exatamente as 40 rotas do app.py, com os mesmos padrões", () => {
-    expect(doPython).toHaveLength(40);
+  it("tem exatamente as 41 rotas do app.py, com os mesmos padrões", () => {
+    expect(doPython).toHaveLength(41);
     expect([...doWorker].sort()).toEqual([...doPython].sort());
   });
 

@@ -104,6 +104,10 @@
   "^/api/projecao$"
  ],
  [
+  "POST",
+  "^/api/projecao/reset$"
+ ],
+ [
   "PUT",
   "^/api/projecao/entradas$"
  ],
